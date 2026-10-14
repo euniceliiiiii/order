@@ -16,6 +16,7 @@
       --surface: #ffffff;
       --surface-2: #f7f8fa;
       --border: #e2e5ea;
+      --grid: #e1e0d9;
       --text: #1a1c20;
       --text-2: #565c66;
       --text-3: #8a909a;
@@ -30,8 +31,16 @@
       --green-soft: #e4f4ea;
       --red: #c21f1f;
       --red-soft: #fdeaea;
-      --gray: #5f6670;
       --gray-soft: #eceef1;
+      /* 四個節點狀態的顏色:已用色盲模擬檢查過(相鄰色差足夠),深色模式另有一組 */
+      --st-pending: #2a78d6;
+      --st-pending-soft: #e7f0fb;
+      --st-talking: #eb6834;
+      --st-talking-soft: #fdeee6;
+      --st-won: #1baf7a;
+      --st-won-soft: #e2f6ee;
+      --st-lost: #6250d6;
+      --st-lost-soft: #ecebfb;
       --shadow: 0 1px 2px rgba(16, 24, 40, .05), 0 1px 3px rgba(16, 24, 40, .07);
       --shadow-lg: 0 10px 30px rgba(16, 24, 40, .18);
       --radius: 16px;
@@ -44,6 +53,7 @@
         --surface: #1a1d21;
         --surface-2: #22262b;
         --border: #30353c;
+        --grid: #2c2f34;
         --text: #eceef1;
         --text-2: #aab0b9;
         --text-3: #7c838d;
@@ -58,8 +68,15 @@
         --green-soft: #183224;
         --red: #ff8585;
         --red-soft: #3c1c1c;
-        --gray: #a7adb6;
         --gray-soft: #2a2e34;
+        --st-pending: #3987e5;
+        --st-pending-soft: #1b2a40;
+        --st-talking: #d95926;
+        --st-talking-soft: #3a2319;
+        --st-won: #199e70;
+        --st-won-soft: #14302a;
+        --st-lost: #9085e9;
+        --st-lost-soft: #26233f;
         --shadow: 0 0 0 1px rgba(255, 255, 255, .02);
         --shadow-lg: 0 10px 30px rgba(0, 0, 0, .55);
       }
@@ -119,9 +136,25 @@
       height: 16px;
     }
 
-    .page {
-      max-width: 640px;
-      margin: 0 auto;
+    /* 狀態色:每個元素用 --c(主色)、--soft(淡底色) */
+    .s-pending {
+      --c: var(--st-pending);
+      --soft: var(--st-pending-soft);
+    }
+
+    .s-talking {
+      --c: var(--st-talking);
+      --soft: var(--st-talking-soft);
+    }
+
+    .s-won {
+      --c: var(--st-won);
+      --soft: var(--st-won-soft);
+    }
+
+    .s-lost {
+      --c: var(--st-lost);
+      --soft: var(--st-lost-soft);
     }
 
     /* ===== 登入 ===== */
@@ -273,9 +306,10 @@
       color: var(--text);
     }
 
-    .btn-ghost {
-      background: transparent;
-      color: var(--text-2);
+    .btn-small {
+      min-height: 38px;
+      font-size: 14px;
+      padding: 0 14px;
     }
 
     .icon-btn {
@@ -314,11 +348,22 @@
       padding-top: env(safe-area-inset-top);
     }
 
+    .appbar-inner,
+    .wrap {
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+
+    .narrow {
+      max-width: 680px;
+      margin: 0 auto;
+    }
+
     .appbar-row {
       display: flex;
       align-items: center;
       gap: 4px;
-      padding: 10px 8px 10px 16px;
+      padding: 10px 8px 6px 16px;
     }
 
     .appbar-text {
@@ -375,23 +420,71 @@
       color: var(--text-3);
     }
 
-    .select {
-      width: 100%;
-      height: 48px;
-      padding: 0 40px 0 14px;
-      border-radius: var(--radius-sm);
-      border: 1px solid var(--border);
-      background: var(--surface-2) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a909a' stroke-width='2' stroke-linecap='round'><path d='M6 9l6 6 6-6'/></svg>") no-repeat right 12px center / 18px;
-      appearance: none;
-      -webkit-appearance: none;
-      font-size: 16px;
-    }
-
-    .admin-picker {
+    .view-switch-wrap {
       padding: 0 16px 12px;
     }
 
-    /* ===== 統計 ===== */
+    .select {
+      width: 100%;
+      height: 46px;
+      padding: 0 40px 0 14px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: var(--surface) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a909a' stroke-width='2' stroke-linecap='round'><path d='M6 9l6 6 6-6'/></svg>") no-repeat right 12px center / 18px;
+      appearance: none;
+      -webkit-appearance: none;
+      font-size: 16px;
+      min-width: 0;
+    }
+
+    .segmented {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      background: var(--gray-soft);
+      border-radius: 12px;
+      padding: 4px;
+      gap: 4px;
+    }
+
+    .seg-btn {
+      border: 0;
+      background: transparent;
+      border-radius: 9px;
+      min-height: 40px;
+      font-weight: 600;
+      color: var(--text-2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .seg-btn.active {
+      background: var(--surface);
+      color: var(--text);
+      box-shadow: var(--shadow);
+    }
+
+    .count {
+      font-size: 12px;
+      font-weight: 700;
+      min-width: 22px;
+      padding: 1px 7px;
+      border-radius: 20px;
+      background: var(--surface-2);
+      color: var(--text-2);
+    }
+
+    .seg-btn.active .count {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    /* ===== 明細:統計 / 分頁 / 搜尋 ===== */
+    .detail-picker {
+      padding: 16px 16px 0;
+    }
+
     .stats {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
@@ -440,7 +533,6 @@
       text-overflow: ellipsis;
     }
 
-    /* ===== 分頁 / 搜尋 ===== */
     .toolbar {
       padding: 12px 16px 4px;
       display: flex;
@@ -448,51 +540,9 @@
       gap: 10px;
     }
 
-    .segmented {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      background: var(--gray-soft);
-      border-radius: 12px;
-      padding: 4px;
-      gap: 4px;
-    }
-
-    .seg-btn {
-      border: 0;
-      background: transparent;
-      border-radius: 9px;
-      min-height: 40px;
-      font-weight: 600;
-      color: var(--text-2);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-    }
-
-    .seg-btn.active {
-      background: var(--surface);
-      color: var(--text);
-      box-shadow: var(--shadow);
-    }
-
-    .count {
-      font-size: 12px;
-      font-weight: 700;
-      min-width: 22px;
-      padding: 1px 7px;
-      border-radius: 20px;
-      background: var(--surface-2);
-      color: var(--text-2);
-    }
-
-    .seg-btn.active .count {
-      background: var(--accent);
-      color: #fff;
-    }
-
     .search {
       position: relative;
+      display: block;
     }
 
     .search .ic {
@@ -528,7 +578,7 @@
     }
 
     .card {
-      --stripe: var(--blue);
+      --stripe: var(--st-pending);
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: var(--radius);
@@ -545,23 +595,7 @@
       top: 0;
       bottom: 0;
       width: 4px;
-      background: var(--stripe);
-    }
-
-    .card.st-pending {
-      --stripe: var(--blue);
-    }
-
-    .card.st-notordered {
-      --stripe: var(--amber);
-    }
-
-    .card.st-won {
-      --stripe: var(--green);
-    }
-
-    .card.st-lost {
-      --stripe: var(--gray);
+      background: var(--c, var(--stripe));
     }
 
     .card-head {
@@ -581,13 +615,13 @@
       padding: 3px 10px;
       border-radius: 20px;
       background: var(--soft);
-      color: var(--c);
+      color: var(--text);
       white-space: nowrap;
     }
 
     .pill .dot {
-      width: 6px;
-      height: 6px;
+      width: 7px;
+      height: 7px;
     }
 
     .tag {
@@ -688,35 +722,6 @@
       font-weight: 400;
     }
 
-    .call {
-      margin-top: 14px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 10px 10px 10px 14px;
-      border-radius: 12px;
-      background: var(--surface-2);
-      border: 1px solid var(--border);
-    }
-
-    .call-num {
-      flex: 1;
-      min-width: 0;
-      font-size: 17px;
-      font-weight: 700;
-      letter-spacing: .02em;
-      word-break: break-all;
-    }
-
-    .call-btn {
-      min-height: 40px;
-      padding: 0 14px;
-      background: var(--green);
-      color: #fff;
-      border-radius: 10px;
-      font-size: 15px;
-    }
-
     .divider {
       height: 1px;
       background: var(--border);
@@ -730,21 +735,20 @@
       margin-bottom: 8px;
     }
 
-    /* 狀態選擇:四顆可直接點的按鈕(底層是 radio) */
-    .status-picker {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
+    .readonly-note {
+      margin-top: 14px;
+      font-size: 13px;
+      color: var(--text-3);
+      display: flex;
+      align-items: center;
       gap: 6px;
     }
 
-    @media (max-width: 360px) {
-      .status-picker {
-        grid-template-columns: 1fr 1fr;
-      }
-
-      .stats {
-        grid-template-columns: 1fr 1fr;
-      }
+    /* 狀態選擇:2x2 按鈕,每顆附一句說明,避免狀態名稱混淆(底層是 radio) */
+    .status-picker {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
     }
 
     .status-opt {
@@ -757,51 +761,47 @@
       pointer-events: none;
     }
 
-    .status-opt span {
+    .status-opt .opt-box {
       display: flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 44px;
-      border-radius: 10px;
+      flex-direction: column;
+      gap: 2px;
+      min-height: 60px;
+      padding: 9px 12px;
+      border-radius: 12px;
       border: 1px solid var(--border);
       background: var(--surface);
-      font-size: 15px;
-      font-weight: 600;
-      color: var(--text-2);
-      transition: background .15s, border-color .15s, color .15s;
+      transition: background .15s, border-color .15s;
       user-select: none;
+      height: 100%;
     }
 
-    .status-opt input:checked+span {
+    .opt-name {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    .opt-hint {
+      font-size: 12px;
+      color: var(--text-3);
+      line-height: 1.35;
+    }
+
+    .status-opt input:checked+.opt-box {
       background: var(--soft);
       border-color: var(--c);
-      color: var(--c);
       box-shadow: inset 0 0 0 1px var(--c);
     }
 
-    .status-opt input:focus-visible+span {
+    .status-opt input:checked+.opt-box .opt-hint {
+      color: var(--text-2);
+    }
+
+    .status-opt input:focus-visible+.opt-box {
       outline: 2px solid var(--blue);
       outline-offset: 2px;
-    }
-
-    .s-pending {
-      --c: var(--blue);
-      --soft: var(--blue-soft);
-    }
-
-    .s-notordered {
-      --c: var(--amber);
-      --soft: var(--amber-soft);
-    }
-
-    .s-won {
-      --c: var(--green);
-      --soft: var(--green-soft);
-    }
-
-    .s-lost {
-      --c: var(--gray);
-      --soft: var(--gray-soft);
     }
 
     .amount {
@@ -846,6 +846,439 @@
 
     .save-row {
       margin-top: 12px;
+    }
+
+    /* ===== 報表 ===== */
+    .report {
+      padding: 16px 16px calc(96px + env(safe-area-inset-bottom));
+    }
+
+    .filters {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .chips {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+
+    .chips::-webkit-scrollbar {
+      display: none;
+    }
+
+    .chip {
+      flex-shrink: 0;
+      min-height: 36px;
+      padding: 0 14px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-2);
+    }
+
+    .chip.active {
+      background: var(--text);
+      border-color: var(--text);
+      color: var(--surface);
+    }
+
+    .filter-selects {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+
+    .filter-selects.two {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    #reportBody {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      transition: opacity .2s;
+    }
+
+    #reportBody.is-stale {
+      opacity: .5;
+      pointer-events: none;
+    }
+
+    .kpis {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+    }
+
+    @media (min-width: 560px) {
+      .kpis {
+        grid-template-columns: repeat(3, 1fr);
+      }
+
+      .filters {
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .filter-selects,
+      .filter-selects.two {
+        grid-auto-flow: column;
+        grid-template-columns: none;
+        grid-auto-columns: 200px;
+      }
+    }
+
+    .kpi {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 12px 14px;
+      box-shadow: var(--shadow);
+      min-width: 0;
+    }
+
+    .kpi-label {
+      font-size: 13px;
+      color: var(--text-2);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .kpi-value {
+      font-size: 24px;
+      font-weight: 700;
+      line-height: 1.3;
+      margin-top: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .kpi-sub {
+      font-size: 12px;
+      color: var(--text-3);
+    }
+
+    .kpi.warn .kpi-value {
+      color: var(--red);
+    }
+
+    .kpi.warn .kpi-label .ic {
+      color: var(--red);
+    }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 16px;
+      min-width: 0;
+    }
+
+    .panel-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+
+    .panel-title {
+      font-size: 16px;
+      font-weight: 700;
+      margin: 0;
+    }
+
+    .panel-sub {
+      font-size: 13px;
+      color: var(--text-3);
+    }
+
+    /* 堆疊長條:片段之間 2px 間隙,兩端 4px 圓角 */
+    .stackbar {
+      display: flex;
+      gap: 2px;
+      height: 16px;
+      border-radius: 4px;
+      overflow: hidden;
+      background: transparent;
+    }
+
+    .stackbar.mini {
+      height: 8px;
+      width: 110px;
+      border-radius: 3px;
+    }
+
+    .stackbar .seg {
+      background: var(--c);
+      min-width: 2px;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 18px;
+      margin-top: 12px;
+      font-size: 14px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .swatch {
+      width: 10px;
+      height: 10px;
+      border-radius: 3px;
+      background: var(--c);
+      flex-shrink: 0;
+    }
+
+    .legend-num {
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .legend-pct {
+      color: var(--text-3);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* 月份直條圖 */
+    .cols-scroll {
+      overflow-x: auto;
+    }
+
+    .cols {
+      display: flex;
+      align-items: flex-end;
+      gap: 10px;
+      min-width: min-content;
+      padding-top: 4px;
+    }
+
+    .col {
+      flex: 1 1 0;
+      min-width: 44px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .col-total {
+      font-size: 13px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      margin-bottom: 4px;
+    }
+
+    .col-stack {
+      width: 100%;
+      max-width: 48px;
+      display: flex;
+      flex-direction: column-reverse;
+      gap: 2px;
+      border-radius: 4px 4px 0 0;
+      overflow: hidden;
+    }
+
+    .col-stack .seg {
+      background: var(--c);
+      min-height: 2px;
+    }
+
+    .col-axis {
+      width: 100%;
+      border-top: 1px solid var(--grid);
+      margin-top: 0;
+      padding-top: 6px;
+      text-align: center;
+      font-size: 12px;
+      color: var(--text-2);
+      line-height: 1.3;
+    }
+
+    .col-axis small {
+      display: block;
+      color: var(--text-3);
+      font-size: 11px;
+    }
+
+    details.numbers {
+      margin-top: 12px;
+      font-size: 14px;
+    }
+
+    details.numbers summary {
+      cursor: pointer;
+      color: var(--blue);
+      font-weight: 600;
+      min-height: 32px;
+      display: flex;
+      align-items: center;
+    }
+
+    /* 表格:手機上可左右滑,第一欄固定 */
+    .tbl-wrap {
+      overflow-x: auto;
+      margin: 0 -16px;
+      padding: 0 16px;
+    }
+
+    .tbl {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+      white-space: nowrap;
+    }
+
+    .tbl th,
+    .tbl td {
+      padding: 10px 8px;
+      border-bottom: 1px solid var(--grid);
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .tbl th:first-child,
+    .tbl td:first-child {
+      text-align: left;
+      position: sticky;
+      left: 0;
+      background: var(--surface);
+      z-index: 1;
+      max-width: 160px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .tbl th {
+      font-size: 12px;
+      color: var(--text-3);
+      font-weight: 600;
+      padding-top: 4px;
+    }
+
+    .tbl th button {
+      border: 0;
+      background: none;
+      padding: 0;
+      font: inherit;
+      color: inherit;
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+    }
+
+    .tbl th[aria-sort] button {
+      color: var(--text);
+    }
+
+    .tbl td.left {
+      text-align: left;
+    }
+
+    .tbl tbody tr.clickable {
+      cursor: pointer;
+    }
+
+    .tbl tbody tr.clickable:hover td {
+      background: var(--surface-2);
+    }
+
+    .tbl .name-cell {
+      font-weight: 600;
+    }
+
+    .tbl .muted {
+      color: var(--text-3);
+    }
+
+    .tbl-more {
+      margin-top: 12px;
+    }
+
+    .attn-list {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .attn-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      width: 100%;
+      text-align: left;
+      border: 0;
+      border-bottom: 1px solid var(--grid);
+      background: none;
+      padding: 10px 0;
+    }
+
+    .attn-item:last-child {
+      border-bottom: 0;
+    }
+
+    .attn-main {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .attn-title {
+      font-weight: 600;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .attn-sub {
+      font-size: 13px;
+      color: var(--text-3);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .attn-side {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+
+    .footnote {
+      font-size: 12px;
+      color: var(--text-3);
+      line-height: 1.6;
+    }
+
+    #tooltip {
+      position: fixed;
+      z-index: 40;
+      pointer-events: none;
+      background: #24272c;
+      color: #fff;
+      font-size: 13px;
+      padding: 6px 10px;
+      border-radius: 8px;
+      box-shadow: var(--shadow-lg);
+      transform: translate(-50%, calc(-100% - 10px));
+      white-space: nowrap;
     }
 
     /* ===== 狀態畫面 ===== */
@@ -989,46 +1422,68 @@
   </main>
 
   <!-- 登入後 -->
-  <div class="page needs-login">
+  <div class="needs-login">
     <header class="appbar">
-      <div class="appbar-row">
-        <div class="appbar-text">
-          <div class="appbar-title">訂單節點回報</div>
-          <div class="appbar-status" id="status"></div>
+      <div class="appbar-inner">
+        <div class="appbar-row">
+          <div class="appbar-text">
+            <div class="appbar-title">訂單節點回報</div>
+            <div class="appbar-status" id="status"></div>
+          </div>
+          <button class="icon-btn" id="refreshBtn" aria-label="重新整理" title="重新整理" data-icon="refresh"></button>
+          <button class="icon-btn" id="logoutBtn" aria-label="登出" title="登出" data-icon="logout"></button>
         </div>
-        <button class="icon-btn" id="refreshBtn" aria-label="重新整理" title="重新整理" data-icon="refresh"></button>
-        <button class="icon-btn" id="logoutBtn" aria-label="登出" title="登出" data-icon="logout"></button>
-      </div>
-      <div class="identity">
-        <div class="avatar" id="avatar"></div>
-        <div class="identity-text">
-          <div class="identity-name" id="identityName"></div>
-          <div class="identity-sub" id="identitySub"></div>
+        <div class="identity">
+          <div class="avatar" id="avatar"></div>
+          <div class="identity-text">
+            <div class="identity-name" id="identityName"></div>
+            <div class="identity-sub" id="identitySub"></div>
+          </div>
         </div>
-      </div>
-      <div class="admin-picker" id="adminPicker" hidden>
-        <select class="select" id="acSelect" aria-label="選擇要查看的 AC"></select>
+        <div class="view-switch-wrap" id="viewSwitchWrap" hidden>
+          <div class="segmented" id="viewSwitch" role="tablist">
+            <button class="seg-btn" data-view="report" role="tab"><span data-icon="chart"></span>報表</button>
+            <button class="seg-btn" data-view="detail" role="tab"><span data-icon="list"></span>訂單明細</button>
+          </div>
+        </div>
       </div>
     </header>
 
-    <div id="acView" hidden>
-      <section class="stats" id="stats" aria-label="狀態統計"></section>
-
-      <div class="toolbar">
-        <div class="segmented" id="tabRow" role="tablist">
-          <button class="seg-btn active" data-tab="open" role="tab">未結案 <span class="count" id="openTabCount">0</span></button>
-          <button class="seg-btn" data-tab="closed" role="tab">已結案 <span class="count" id="closedTabCount">0</span></button>
+    <!-- 報表(管理員 / RC) -->
+    <section id="reportView" class="report wrap" hidden>
+      <div class="filters">
+        <div class="chips" id="periodChips" aria-label="用餐日期期間"></div>
+        <div class="filter-selects" id="filterSelects">
+          <select class="select" id="rcFilter" aria-label="篩選 RC" hidden></select>
+          <select class="select" id="acFilter" aria-label="篩選 AC"></select>
         </div>
-        <label class="search">
-          <span data-icon="search"></span>
-          <input type="search" id="searchInput" placeholder="搜尋顧客、門市或電話" aria-label="搜尋">
-        </label>
       </div>
-    </div>
+      <div id="reportBody"></div>
+    </section>
 
-    <main class="list" id="list"></main>
+    <!-- 訂單明細 -->
+    <section id="detailView" class="narrow" hidden>
+      <div class="detail-picker" id="adminPicker" hidden>
+        <select class="select" id="acSelect" aria-label="選擇要查看的 AC"></select>
+      </div>
+      <div id="acView" hidden>
+        <section class="stats" id="stats" aria-label="狀態統計"></section>
+        <div class="toolbar">
+          <div class="segmented" id="tabRow" role="tablist">
+            <button class="seg-btn active" data-tab="open" role="tab">未結案 <span class="count" id="openTabCount">0</span></button>
+            <button class="seg-btn" data-tab="closed" role="tab">已結案 <span class="count" id="closedTabCount">0</span></button>
+          </div>
+          <label class="search">
+            <span data-icon="search"></span>
+            <input type="search" id="searchInput" placeholder="搜尋顧客、門市或電話" aria-label="搜尋">
+          </label>
+        </div>
+      </div>
+      <main class="list" id="list"></main>
+    </section>
   </div>
 
+  <div id="tooltip" role="tooltip" hidden></div>
   <div id="toast-wrap" aria-live="polite"></div>
 
   <script>
@@ -1082,7 +1537,12 @@
       alert: '<path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>',
       check: '<path d="M20 6L9 17l-5-5"/>',
       clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
-      trophy: '<path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4z"/><path d="M17 5h3a3 3 0 0 1-3 4M7 5H4a3 3 0 0 0 3 4"/>'
+      trophy: '<path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4z"/><path d="M17 5h3a3 3 0 0 1-3 4M7 5H4a3 3 0 0 0 3 4"/>',
+      chart: '<path d="M3 3v18h18"/><path d="M8 17V11M13 17V7M18 17v-4"/>',
+      list: '<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
+      eyeView: '<path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/>',
+      sort: '<path d="M8 9l4-4 4 4M16 15l-4 4-4-4"/>',
+      chevronRight: '<path d="M9 6l6 6-6 6"/>'
     };
 
     function svg(name, extraClass) {
@@ -1097,7 +1557,7 @@
 
     // 把 HTML 裡 data-icon 的元素填入對應圖示
     document.querySelectorAll('[data-icon]').forEach(function (node) {
-      node.innerHTML = svg(node.dataset.icon);
+      node.innerHTML = svg(node.dataset.icon, node.closest('.seg-btn') ? 'ic-sm' : '');
     });
 
     // 建立元素的小工具:文字一律用 textContent,不會被當成 HTML 解析
@@ -1110,28 +1570,58 @@
 
     const $ = function (id) { return document.getElementById(id); };
 
-    // ===== 常數與狀態 =====
+    // ===== 常數 =====
     const NO_VALUE_TEXT = '顧客未提供';
+    // 試算表裡存的狀態值(不變,舊資料不用改)
     const STATUS_PENDING = '待聯繫';
     const STATUS_NOT_ORDERED = '未下單';
     const STATUS_WON = '已成單';
     const STATUS_LOST = '未成單';
     const STATUSES = [STATUS_PENDING, STATUS_NOT_ORDERED, STATUS_WON, STATUS_LOST];
     const CLOSED_STATUSES = [STATUS_WON, STATUS_LOST];
+    const OPEN_STATUSES = [STATUS_PENDING, STATUS_NOT_ORDERED];
+    // 畫面上顯示的名稱與說明
+    const STATUS_LABEL = {};
+    STATUS_LABEL[STATUS_PENDING] = '尚未聯繫';
+    STATUS_LABEL[STATUS_NOT_ORDERED] = '待下單';
+    STATUS_LABEL[STATUS_WON] = '已成交';
+    STATUS_LABEL[STATUS_LOST] = '已流失';
+    const STATUS_HINT = {};
+    STATUS_HINT[STATUS_PENDING] = '還沒打給顧客';
+    STATUS_HINT[STATUS_NOT_ORDERED] = '已聯繫，顧客還沒下單';
+    STATUS_HINT[STATUS_WON] = '顧客已下單，需填金額';
+    STATUS_HINT[STATUS_LOST] = '顧客決定不訂了';
     const STATUS_CLASS = {};
     STATUS_CLASS[STATUS_PENDING] = 'pending';
-    STATUS_CLASS[STATUS_NOT_ORDERED] = 'notordered';
+    STATUS_CLASS[STATUS_NOT_ORDERED] = 'talking';
     STATUS_CLASS[STATUS_WON] = 'won';
     STATUS_CLASS[STATUS_LOST] = 'lost';
     const PW_STORAGE_KEY = 'ac_report_pw';
+    const NONE_KEY = '__none__';
 
+    function label(status) {
+      return STATUS_LABEL[status] || status;
+    }
+
+    function sClass(status) {
+      return 's-' + (STATUS_CLASS[status] || 'pending');
+    }
+
+    // ===== 狀態 =====
+    let role = '';            // 'ac' | 'rc' | 'admin'
+    let password = '';
+    let view = 'detail';      // 'report' | 'detail'
+    let currentAc = '';
     let allOrders = [];
     let currentTab = 'open';
-    let currentAc = '';
-    let password = '';
-    let isAdmin = false;
     let searchKeyword = '';
+    let autoTab = false;      // 從報表點進來時,如果未結案找不到就自動切到已結案
     let loadingTimeout;
+    let reportOrders = null;
+    let reportGeneratedAt = '';
+    const reportFilter = { period: 'all', rc: '', ac: '' };
+    const tableSort = {};
+    let showAllStores = false;
 
     function hasValue(v) {
       return v !== undefined && v !== null && String(v).trim() !== '' && v !== NO_VALUE_TEXT;
@@ -1146,7 +1636,21 @@
     }
 
     function formatMoney(n) {
-      return 'NT$ ' + Number(n).toLocaleString('zh-TW');
+      return 'NT$ ' + Math.round(Number(n)).toLocaleString('zh-TW');
+    }
+
+    function pct(n, d) {
+      return d ? Math.round(n / d * 100) + '%' : '—';
+    }
+
+    // 依用餐日期由舊到新排序;沒有日期的排最後,同一天再依填寫時間
+    function byDiningDate(a, b) {
+      const da = typeof a.diningDateKey === 'number' ? a.diningDateKey : Infinity;
+      const db = typeof b.diningDateKey === 'number' ? b.diningDateKey : Infinity;
+      if (da !== db) return da - db;
+      const ta = typeof a.submitTimeKey === 'number' ? a.submitTimeKey : Infinity;
+      const tb = typeof b.submitTimeKey === 'number' ? b.submitTimeKey : Infinity;
+      return ta - tb;
     }
 
     // ===== 事件 =====
@@ -1154,13 +1658,20 @@
       const btn = this;
       btn.classList.add('spinning');
       setTimeout(function () { btn.classList.remove('spinning'); }, 700);
-      if (currentAc) {
+      if (view === 'report') {
+        loadReport();
+      } else if (currentAc) {
         logAction('重新整理', '');
         loadOrders(currentAc);
       }
     });
 
-    // 只有管理員會看到這個下拉選單,用來切換查看任一位 AC
+    $('viewSwitch').addEventListener('click', function (e) {
+      const btn = e.target.closest('.seg-btn');
+      if (btn) setView(btn.dataset.view);
+    });
+
+    // 管理員 / RC 在明細切換要看哪一位 AC
     $('acSelect').addEventListener('change', function () {
       const ac = this.value;
       if (!ac) return;
@@ -1195,12 +1706,7 @@
     $('tabRow').addEventListener('click', function (e) {
       const btn = e.target.closest('.seg-btn');
       if (!btn || btn.dataset.tab === currentTab) return;
-      currentTab = btn.dataset.tab;
-      document.querySelectorAll('.seg-btn').forEach(function (b) {
-        const on = b.dataset.tab === currentTab;
-        b.classList.toggle('active', on);
-        b.setAttribute('aria-selected', on ? 'true' : 'false');
-      });
+      setTab(btn.dataset.tab);
       logAction('切換分頁', currentTab === 'open' ? '未結案' : '已結案');
       renderCurrentTab();
     });
@@ -1210,8 +1716,43 @@
       renderCurrentTab();
     });
 
+    $('rcFilter').addEventListener('change', function () {
+      reportFilter.rc = this.value;
+      reportFilter.ac = '';
+      rebuildAcFilter();
+      renderReport();
+    });
+
+    $('acFilter').addEventListener('change', function () {
+      reportFilter.ac = this.value;
+      renderReport();
+    });
+
+    // 圖表 tooltip:滑鼠移上去或手指點一下顯示(只是輔助,數字在圖例與表格都看得到)
+    document.addEventListener('pointerover', function (e) {
+      const t = e.target.closest && e.target.closest('[data-tip]');
+      if (t) showTip(t.dataset.tip, e.clientX, e.clientY);
+    });
+    document.addEventListener('pointermove', function (e) {
+      const t = e.target.closest && e.target.closest('[data-tip]');
+      if (t) showTip(t.dataset.tip, e.clientX, e.clientY);
+    });
+    document.addEventListener('pointerout', function (e) {
+      if (e.target.closest && e.target.closest('[data-tip]')) $('tooltip').hidden = true;
+    });
+    window.addEventListener('scroll', function () { $('tooltip').hidden = true; }, { passive: true });
+
+    function showTip(text, x, y) {
+      const tip = $('tooltip');
+      tip.textContent = text;
+      tip.hidden = false;
+      const half = tip.offsetWidth / 2 + 8;
+      tip.style.left = Math.min(Math.max(x, half), window.innerWidth - half) + 'px';
+      tip.style.top = Math.max(y, tip.offsetHeight + 16) + 'px';
+    }
+
     // 記錄操作用的小工具:純粹記錄,失敗也不影響使用,所以不特別處理失敗情況
-    // (後端依密碼決定記在哪位 AC 名下;參數裡的 action/detail 改用 logAction/detail 避免跟
+    // (後端依密碼決定記在誰名下;參數裡的 action/detail 改用 logAction/detail 避免跟
     //  gasCall 自己的 action 分派參數撞名)
     function logAction(action, detail) {
       if (!password) return;
@@ -1219,7 +1760,7 @@
     }
 
     // ===== 登入 / 登出 =====
-    // 身份由密碼決定:AC 密碼只會拿到自己名下的訂單;管理員密碼可以切換查看任一位 AC
+    // 身份由密碼決定:AC 只看自己名下訂單;RC 看自己負責的 AC(唯讀)+ 報表;管理員看全部 + 報表
     function login(pw, fromStorage) {
       password = pw;
       const btn = $('loginBtn');
@@ -1237,21 +1778,29 @@
         try { localStorage.setItem(PW_STORAGE_KEY, pw); } catch (e) { /* 存不進去就算了,下次再輸入一次 */ }
         $('pwInput').value = '';
         document.body.classList.remove('logged-out');
-        isAdmin = res.role === 'admin';
+        role = res.role;
 
-        if (isAdmin) {
-          setIdentity('管理員', '可切換查看任一位 AC');
-          fillAcSelect(res.acList || []);
-          $('adminPicker').hidden = false;
-          $('acView').hidden = true;
-          currentAc = '';
-          showState('👆', '請選擇要查看的 AC', '從上方下拉選單選一位 AC');
-        } else {
+        if (role === 'ac') {
           setIdentity(res.ac, '只會看到你名下門市的訂單');
+          $('viewSwitchWrap').hidden = true;
           $('adminPicker').hidden = true;
+          setView('detail', true);
           loadOrders(res.ac);
-          logAction('開啟頁面', fromStorage ? '瀏覽器記住的密碼' : '輸入密碼登入');
+        } else {
+          if (role === 'admin') {
+            setIdentity('管理員', '可查看全部報表與訂單');
+          } else {
+            setIdentity(res.rc, 'RC・負責 ' + (res.acList || []).length + ' 位 AC（唯讀）');
+          }
+          fillAcSelect(res.acList || []);
+          $('viewSwitchWrap').hidden = false;
+          $('adminPicker').hidden = false;
+          currentAc = '';
+          $('acView').hidden = true;
+          showState('list', '👆', '請選擇要查看的 AC', '從上方下拉選單選一位 AC');
+          setView('report', true);
         }
+        logAction('開啟頁面', fromStorage ? '瀏覽器記住的密碼' : '輸入密碼登入');
       }).catch(function (err) {
         btn.disabled = false;
         btn.textContent = '登入';
@@ -1267,14 +1816,20 @@
 
     function showLogin(message) {
       password = '';
-      isAdmin = false;
+      role = '';
       currentAc = '';
       allOrders = [];
+      reportOrders = null;
+      reportFilter.period = 'all';
+      reportFilter.rc = '';
+      reportFilter.ac = '';
+      showAllStores = false;
       try { localStorage.removeItem(PW_STORAGE_KEY); } catch (e) { }
       clearTimeout(loadingTimeout);
       setStatus('');
       $('searchInput').value = '';
       searchKeyword = '';
+      $('tooltip').hidden = true;
       document.body.classList.add('logged-out');
       const btn = $('loginBtn');
       btn.disabled = false;
@@ -1295,53 +1850,97 @@
       });
     }
 
-    // ===== 畫面狀態:提示 / 載入中 / 錯誤 =====
-    function showState(icon, title, text) {
-      const list = $('list');
-      list.innerHTML = '';
-      const box = el('div', 'state');
-      box.appendChild(el('div', 'state-icon', icon));
-      box.appendChild(el('div', 'state-title', title));
-      if (text) box.appendChild(el('div', 'state-text', text));
-      list.appendChild(box);
+    function setView(v, silent) {
+      view = v;
+      document.querySelectorAll('#viewSwitch .seg-btn').forEach(function (b) {
+        const on = b.dataset.view === v;
+        b.classList.toggle('active', on);
+        b.setAttribute('aria-selected', on ? 'true' : 'false');
+      });
+      $('reportView').hidden = v !== 'report';
+      $('detailView').hidden = v !== 'detail';
+      $('tooltip').hidden = true;
+      window.scrollTo(0, 0);
+      if (v === 'report') {
+        if (!reportOrders) loadReport();
+        else setStatus('資料時間 ' + (reportGeneratedAt || ''));
+        if (!silent) logAction('查看報表', '');
+      } else {
+        setStatus('');
+      }
     }
 
-    function showSkeleton() {
-      const list = $('list');
-      list.innerHTML = '';
-      for (let i = 0; i < 3; i++) {
+    function setTab(tab) {
+      currentTab = tab;
+      document.querySelectorAll('#tabRow .seg-btn').forEach(function (b) {
+        const on = b.dataset.tab === currentTab;
+        b.classList.toggle('active', on);
+        b.setAttribute('aria-selected', on ? 'true' : 'false');
+      });
+    }
+
+    // 從報表點某位 AC / 門市 / 訂單 → 切到明細並帶入搜尋字
+    function openDetail(ac, search) {
+      if (!ac) return;
+      $('acSelect').value = ac;
+      $('searchInput').value = search || '';
+      searchKeyword = (search || '').trim().toLowerCase();
+      setTab('open');
+      autoTab = !!search;
+      setView('detail', true);
+      loadOrders(ac);
+      logAction('從報表查看', ac + (search ? '(' + search + ')' : ''));
+    }
+
+    // ===== 畫面狀態:提示 / 載入中 / 錯誤 =====
+    function showState(containerId, icon, title, text) {
+      const box = $(containerId);
+      box.innerHTML = '';
+      const st = el('div', 'state');
+      st.appendChild(el('div', 'state-icon', icon));
+      st.appendChild(el('div', 'state-title', title));
+      if (text) st.appendChild(el('div', 'state-text', text));
+      box.appendChild(st);
+    }
+
+    function showSkeleton(containerId, count) {
+      const box = $(containerId);
+      box.innerHTML = '';
+      for (let i = 0; i < (count || 3); i++) {
         const sk = el('div', 'skeleton');
         [40, 70, 55, 90].forEach(function (w) {
           const line = el('div', 'sk-line');
           line.style.width = w + '%';
           sk.appendChild(line);
         });
-        list.appendChild(sk);
+        box.appendChild(sk);
       }
     }
 
-    function showError(message, retry) {
-      const list = $('list');
-      list.innerHTML = '';
-      const box = el('div', 'error-box');
-      box.setAttribute('role', 'alert');
-      box.appendChild(el('strong', null, '發生錯誤'));
-      box.appendChild(document.createTextNode(message));
+    function showError(containerId, message, retry) {
+      const box = $(containerId);
+      box.innerHTML = '';
+      const err = el('div', 'error-box');
+      err.setAttribute('role', 'alert');
+      err.appendChild(el('strong', null, '發生錯誤'));
+      err.appendChild(document.createTextNode(message));
       if (retry) {
         const btn = el('button', 'btn btn-secondary', '重試');
         btn.addEventListener('click', retry);
-        box.appendChild(el('br'));
-        box.appendChild(btn);
+        err.appendChild(el('br'));
+        err.appendChild(btn);
       }
-      list.appendChild(box);
+      box.appendChild(err);
     }
 
-    // ===== 讀取這位 AC 名下的訂單 =====
+    // =====================================================================
+    // 訂單明細
+    // =====================================================================
     function loadOrders(acEmail) {
       currentAc = acEmail;
       $('acView').hidden = false;
       setStatus('載入中…');
-      showSkeleton();
+      showSkeleton('list');
       clearTimeout(loadingTimeout);
       loadingTimeout = setTimeout(function () {
         setStatus('已等待超過 10 秒，仍在等待回應…');
@@ -1350,7 +1949,7 @@
       gasCall('getOrdersForAc', { ac: acEmail }).then(onOrdersLoaded).catch(function (err) {
         clearTimeout(loadingTimeout);
         setStatus('載入失敗');
-        showError(err.message, function () { loadOrders(acEmail); });
+        showError('list', err.message, function () { loadOrders(acEmail); });
       });
     }
 
@@ -1358,20 +1957,18 @@
       clearTimeout(loadingTimeout);
       if (!result || !result.success) {
         setStatus('載入失敗');
-        showError(result ? result.error : '後端回傳空值', function () { loadOrders(currentAc); });
+        showError('list', result ? result.error : '後端回傳空值', function () { loadOrders(currentAc); });
         return;
       }
       setStatus('更新於 ' + nowTime());
       allOrders = result.orders || [];
+      if (autoTab) {
+        autoTab = false;
+        const hasOpen = allOrders.some(function (o) { return CLOSED_STATUSES.indexOf(o.status) === -1 && matchesSearch(o); });
+        const hasClosed = allOrders.some(function (o) { return CLOSED_STATUSES.indexOf(o.status) !== -1 && matchesSearch(o); });
+        if (!hasOpen && hasClosed) setTab('closed');
+      }
       renderCurrentTab();
-    }
-
-    function sortByDaysUntil(orders) {
-      return orders.slice().sort(function (a, b) {
-        const da = (typeof a.daysUntil === 'number') ? a.daysUntil : Infinity;
-        const db = (typeof b.daysUntil === 'number') ? b.daysUntil : Infinity;
-        return da - db;
-      });
     }
 
     function matchesSearch(o) {
@@ -1380,8 +1977,8 @@
     }
 
     function renderCurrentTab() {
-      const openOrders = sortByDaysUntil(allOrders.filter(function (o) { return CLOSED_STATUSES.indexOf(o.status) === -1; }));
-      const closedOrders = sortByDaysUntil(allOrders.filter(function (o) { return CLOSED_STATUSES.indexOf(o.status) !== -1; }));
+      const openOrders = allOrders.filter(function (o) { return CLOSED_STATUSES.indexOf(o.status) === -1; }).sort(byDiningDate);
+      const closedOrders = allOrders.filter(function (o) { return CLOSED_STATUSES.indexOf(o.status) !== -1; }).sort(byDiningDate);
 
       $('openTabCount').textContent = openOrders.length;
       $('closedTabCount').textContent = closedOrders.length;
@@ -1409,11 +2006,11 @@
       const box = $('stats');
       box.innerHTML = '';
       STATUSES.forEach(function (s) {
-        const tile = el('div', 'stat s-' + STATUS_CLASS[s]);
-        const label = el('div', 'stat-label');
-        label.appendChild(el('span', 'dot'));
-        label.appendChild(document.createTextNode(s));
-        tile.appendChild(label);
+        const tile = el('div', 'stat ' + sClass(s));
+        const lab = el('div', 'stat-label');
+        lab.appendChild(el('span', 'dot'));
+        lab.appendChild(document.createTextNode(label(s)));
+        tile.appendChild(lab);
         tile.appendChild(el('div', 'stat-num', counts[s]));
         tile.appendChild(el('div', 'stat-extra', extras[s] || ' '));
         box.appendChild(tile);
@@ -1426,11 +2023,11 @@
 
       if (!orders.length) {
         if (searchKeyword) {
-          showState('🔍', '找不到符合的訂單', '試試其他關鍵字');
+          showState('list', '🔍', '找不到符合的訂單', '試試其他關鍵字');
         } else if (currentTab === 'open') {
-          showState('🎉', '目前沒有未結案的訂單', '有新訂單時會出現在這裡');
+          showState('list', '🎉', '目前沒有未結案的訂單', '有新訂單時會出現在這裡');
         } else {
-          showState('📭', '目前沒有已結案的訂單', '標記「已成單」或「未成單」後會移到這裡');
+          showState('list', '📭', '目前沒有已結案的訂單', '標記「已成交」或「已流失」後會移到這裡');
         }
         return;
       }
@@ -1454,24 +2051,24 @@
     }
 
     function statusPill(status) {
-      const pill = el('span', 'pill s-' + (STATUS_CLASS[status] || 'pending'));
+      const pill = el('span', 'pill ' + sClass(status));
       pill.appendChild(el('span', 'dot'));
-      pill.appendChild(document.createTextNode(status));
+      pill.appendChild(document.createTextNode(label(status)));
       return pill;
     }
 
-    function metaItem(icon, label, value, full) {
+    function metaItem(icon, lab, value, full) {
       const item = el('div', 'meta-item' + (full ? ' full' : ''));
       item.appendChild(iconEl(icon));
       const text = el('div');
-      text.appendChild(el('div', 'meta-k', label));
+      text.appendChild(el('div', 'meta-k', lab));
       text.appendChild(el('div', 'meta-v' + (hasValue(value) ? '' : ' muted'), hasValue(value) ? value : NO_VALUE_TEXT));
       item.appendChild(text);
       return item;
     }
 
     function buildCard(o) {
-      const card = el('article', 'card st-' + (STATUS_CLASS[o.status] || 'pending'));
+      const card = el('article', 'card ' + sClass(o.status));
       card.id = 'order-' + o.rowIndex;
 
       const head = el('div', 'card-head');
@@ -1486,14 +2083,14 @@
       sub.appendChild(document.createTextNode(o.storeName));
       card.appendChild(sub);
 
-      // 「未下單」且用餐日期逼近/已過期時,額外提示
+      // 「待下單」且用餐日期逼近/已過期時,額外提示
       if (o.status === STATUS_NOT_ORDERED && typeof o.daysUntil === 'number' && o.daysUntil <= 2) {
         const overdue = o.daysUntil < 0;
         const alert = el('div', 'alert' + (overdue ? ' late' : ''));
         alert.appendChild(iconEl('alert', 'ic-sm'));
         alert.appendChild(el('span', null, overdue
-          ? '用餐日期已過 ' + Math.abs(o.daysUntil) + ' 天，仍未下單'
-          : (o.daysUntil === 0 ? '用餐日期就是今天，仍未下單' : '用餐日期剩 ' + o.daysUntil + ' 天，仍未下單')));
+          ? '用餐日期已過 ' + Math.abs(o.daysUntil) + ' 天，顧客仍未下單'
+          : (o.daysUntil === 0 ? '今天就是用餐日，顧客仍未下單' : '用餐日期剩 ' + o.daysUntil + ' 天，顧客仍未下單')));
         card.appendChild(alert);
       }
 
@@ -1504,32 +2101,22 @@
       meta.appendChild(metaItem('calendar', '用餐日期', dateText, true));
       meta.appendChild(metaItem('users', '預計人數', o.people));
       meta.appendChild(metaItem('cash', '預算範圍', o.budget));
+      meta.appendChild(metaItem('phone', '聯絡電話', o.phone, true));
       if (o.status === STATUS_WON && o.dealAmount) {
-        meta.appendChild(metaItem('trophy', '成單金額', formatMoney(o.dealAmount)));
+        meta.appendChild(metaItem('trophy', '成交金額', formatMoney(o.dealAmount)));
       }
       if (o.status === STATUS_WON && o.dealTime) {
-        meta.appendChild(metaItem('check', '成單時間', o.dealTime));
+        meta.appendChild(metaItem('check', '成交時間', o.dealTime));
       }
       card.appendChild(meta);
 
-      // 電話:可以直接點撥
-      if (hasValue(o.phone)) {
-        const call = el('div', 'call');
-        call.appendChild(el('div', 'call-num', o.phone));
-        const telDigits = String(o.phone).replace(/[^\d+]/g, '');
-        if (telDigits) {
-          const a = el('a', 'btn call-btn');
-          a.href = 'tel:' + telDigits;
-          a.appendChild(iconEl('phone', 'ic-sm'));
-          a.appendChild(document.createTextNode('撥打'));
-          a.addEventListener('click', function () { logAction('撥打電話', o.storeName + '(' + (o.customer || '') + ')'); });
-          call.appendChild(a);
-        }
-        card.appendChild(call);
-      } else {
-        const meta2 = el('div', 'meta');
-        meta2.appendChild(metaItem('phone', '聯絡電話', '', true));
-        card.appendChild(meta2);
+      // RC 只能看,不能改
+      if (role === 'rc') {
+        const note = el('div', 'readonly-note');
+        note.appendChild(iconEl('eyeView', 'ic-sm'));
+        note.appendChild(document.createTextNode('檢視模式：狀態由 AC 更新'));
+        card.appendChild(note);
+        return card;
       }
 
       card.appendChild(el('div', 'divider'));
@@ -1541,21 +2128,27 @@
       picker.setAttribute('aria-label', '節點狀態');
       const groupName = 'st-' + o.rowIndex;
       STATUSES.forEach(function (s) {
-        const opt = el('label', 'status-opt s-' + STATUS_CLASS[s]);
+        const opt = el('label', 'status-opt ' + sClass(s));
         const input = document.createElement('input');
         input.type = 'radio';
         input.name = groupName;
         input.value = s;
         input.checked = s === o.status;
         opt.appendChild(input);
-        opt.appendChild(el('span', null, s));
+        const box = el('span', 'opt-box');
+        const name = el('span', 'opt-name');
+        name.appendChild(el('span', 'dot'));
+        name.appendChild(document.createTextNode(label(s)));
+        box.appendChild(name);
+        box.appendChild(el('span', 'opt-hint', STATUS_HINT[s]));
+        opt.appendChild(box);
         picker.appendChild(opt);
       });
       card.appendChild(picker);
 
-      // 成單金額輸入:只有選到「已成單」才顯示
+      // 成交金額輸入:只有選到「已成交」才顯示
       const amount = el('div', 'amount');
-      const amountLabel = el('label', 'section-label', '成單金額');
+      const amountLabel = el('label', 'section-label', '成交金額');
       const amountId = 'amt-' + o.rowIndex;
       amountLabel.htmlFor = amountId;
       amount.appendChild(amountLabel);
@@ -1588,7 +2181,7 @@
         amount.hidden = s !== STATUS_WON;
         const changed = s !== o.status || (s === STATUS_WON && amountInput.value.trim() !== String(o.dealAmount || ''));
         saveBtn.disabled = !changed;
-        saveBtn.textContent = changed ? '儲存為「' + s + '」' : '狀態未變更';
+        saveBtn.textContent = changed ? '儲存為「' + label(s) + '」' : '狀態未變更';
       }
 
       picker.addEventListener('change', function () {
@@ -1608,7 +2201,7 @@
       if (newStatus === STATUS_WON) {
         const amt = Number(amountValue);
         if (!amountValue || isNaN(amt) || amt <= 0) {
-          alert('選擇「已成單」時，請輸入有效的成單金額');
+          alert('選擇「已成交」時，請輸入有效的成交金額');
           return;
         }
       }
@@ -1625,7 +2218,8 @@
             btn.innerHTML = svg('check', 'ic-sm');
             btn.appendChild(document.createTextNode('已儲存'));
             btn.classList.add('is-saved');
-            showToast((order.customer && order.customer !== NO_VALUE_TEXT ? order.customer : order.storeName) + ' 已更新為「' + res.status + '」');
+            reportOrders = null; // 報表資料已過期,下次切到報表時重新讀取
+            showToast((hasValue(order.customer) ? order.customer : order.storeName) + ' 已更新為「' + label(res.status) + '」');
             logAction('更新節點狀態', order.storeName + '(' + (order.customer || '') + ') → ' + res.status);
             setTimeout(renderCurrentTab, 600);
           } else {
@@ -1650,6 +2244,512 @@
         toast.classList.remove('show');
         setTimeout(function () { toast.remove(); }, 250);
       }, 3000);
+    }
+
+    // =====================================================================
+    // 報表(管理員 / RC)
+    // =====================================================================
+    function monthRange(offset) {
+      const now = new Date();
+      const start = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+      const end = new Date(now.getFullYear(), now.getMonth() + offset + 1, 1);
+      return [start.getTime(), end.getTime(), start];
+    }
+
+    const PERIODS = [
+      { key: 'all', name: '全部期間' },
+      { key: 'last', name: '上個月', offset: -1 },
+      { key: 'this', name: '本月', offset: 0 },
+      { key: 'next', name: '下個月', offset: 1 }
+    ];
+
+    function renderPeriodChips() {
+      const box = $('periodChips');
+      box.innerHTML = '';
+      PERIODS.forEach(function (p) {
+        let text = p.name;
+        if (p.offset !== undefined) text += '（' + (monthRange(p.offset)[2].getMonth() + 1) + '月）';
+        const chip = el('button', 'chip' + (reportFilter.period === p.key ? ' active' : ''), text);
+        chip.type = 'button';
+        chip.addEventListener('click', function () {
+          reportFilter.period = p.key;
+          renderPeriodChips();
+          renderReport();
+        });
+        box.appendChild(chip);
+      });
+    }
+
+    function loadReport() {
+      setStatus('載入報表中…');
+      if (reportOrders) {
+        // 重新整理時保留舊畫面(變淡),不閃骨架
+        $('reportBody').classList.add('is-stale');
+      } else {
+        showSkeleton('reportBody', 3);
+      }
+      renderPeriodChips();
+
+      gasCall('getReport').then(function (res) {
+        $('reportBody').classList.remove('is-stale');
+        if (!res || !res.success) {
+          setStatus('載入失敗');
+          showError('reportBody', res ? res.error : '後端回傳空值', loadReport);
+          return;
+        }
+        reportOrders = res.orders || [];
+        reportGeneratedAt = res.generatedAt || nowTime();
+        if (view === 'report') setStatus('資料時間 ' + reportGeneratedAt);
+        rebuildRcFilter();
+        rebuildAcFilter();
+        renderReport();
+      }).catch(function (err) {
+        $('reportBody').classList.remove('is-stale');
+        setStatus('載入失敗');
+        showError('reportBody', err.message, loadReport);
+      });
+    }
+
+    function nameOrNone(v) {
+      return v ? v : NONE_KEY;
+    }
+
+    function distinct(list) {
+      const seen = {};
+      return list.filter(function (v) {
+        if (seen[v]) return false;
+        seen[v] = true;
+        return true;
+      }).sort(function (a, b) {
+        if (a === NONE_KEY) return 1;
+        if (b === NONE_KEY) return -1;
+        return a.localeCompare(b);
+      });
+    }
+
+    function fillFilterSelect(select, allText, values, emptyText, current) {
+      select.innerHTML = '';
+      const all = el('option', null, allText);
+      all.value = '';
+      select.appendChild(all);
+      values.forEach(function (v) {
+        const opt = el('option', null, v === NONE_KEY ? emptyText : v);
+        opt.value = v;
+        select.appendChild(opt);
+      });
+      select.value = values.indexOf(current) !== -1 ? current : '';
+    }
+
+    function rebuildRcFilter() {
+      const rcs = distinct(reportOrders.map(function (o) { return nameOrNone(o.rc); }));
+      const show = role === 'admin' && rcs.some(function (r) { return r !== NONE_KEY; });
+      $('rcFilter').hidden = !show;
+      $('filterSelects').classList.toggle('two', show);
+      if (!show) {
+        reportFilter.rc = '';
+        return;
+      }
+      fillFilterSelect($('rcFilter'), '全部 RC', rcs, '（未設定 RC）', reportFilter.rc);
+      reportFilter.rc = $('rcFilter').value;
+    }
+
+    function rebuildAcFilter() {
+      const acs = distinct(reportOrders.filter(matchRc).map(function (o) { return nameOrNone(o.ac); }));
+      fillFilterSelect($('acFilter'), '全部 AC', acs, '（未對應 AC）', reportFilter.ac);
+      reportFilter.ac = $('acFilter').value;
+    }
+
+    function matchRc(o) {
+      return !reportFilter.rc || nameOrNone(o.rc) === reportFilter.rc;
+    }
+
+    function inPeriod(o) {
+      if (reportFilter.period === 'all') return true;
+      const p = PERIODS.filter(function (x) { return x.key === reportFilter.period; })[0];
+      if (!p || typeof o.diningDateKey !== 'number') return false;
+      const r = monthRange(p.offset);
+      return o.diningDateKey >= r[0] && o.diningDateKey < r[1];
+    }
+
+    function filteredReportOrders() {
+      return (reportOrders || []).filter(function (o) {
+        return inPeriod(o) && matchRc(o) && (!reportFilter.ac || nameOrNone(o.ac) === reportFilter.ac);
+      });
+    }
+
+    function isAttention(o) {
+      return OPEN_STATUSES.indexOf(o.status) !== -1 && typeof o.daysUntil === 'number' && o.daysUntil <= 2;
+    }
+
+    function summarize(orders) {
+      const s = { total: orders.length, counts: {}, amount: 0, attention: 0 };
+      STATUSES.forEach(function (st) { s.counts[st] = 0; });
+      orders.forEach(function (o) {
+        if (s.counts[o.status] !== undefined) s.counts[o.status]++;
+        if (o.status === STATUS_WON) s.amount += Number(o.dealAmount) || 0;
+        if (isAttention(o)) s.attention++;
+      });
+      s.won = s.counts[STATUS_WON];
+      s.lost = s.counts[STATUS_LOST];
+      s.open = s.counts[STATUS_PENDING] + s.counts[STATUS_NOT_ORDERED];
+      return s;
+    }
+
+    // 依 keyFn 分組統計;sample 保留第一筆訂單(門市表要拿它的 AC)
+    function aggregate(orders, keyFn) {
+      const groups = {};
+      const order = [];
+      orders.forEach(function (o) {
+        const k = keyFn(o);
+        if (!groups[k]) {
+          groups[k] = { key: k, orders: [], sample: o };
+          order.push(k);
+        }
+        groups[k].orders.push(o);
+      });
+      return order.map(function (k) {
+        const g = groups[k];
+        const s = summarize(g.orders);
+        s.key = k;
+        s.sample = g.sample;
+        s.rate = (s.won + s.lost) ? s.won / (s.won + s.lost) : null;
+        return s;
+      });
+    }
+
+    function renderReport() {
+      if (!reportOrders) return;
+      const body = $('reportBody');
+      body.innerHTML = '';
+      $('tooltip').hidden = true;
+      const orders = filteredReportOrders();
+
+      if (!orders.length) {
+        showState('reportBody', '📭', '這個範圍沒有訂單', '換個期間或篩選條件試試');
+        return;
+      }
+
+      const sum = summarize(orders);
+      body.appendChild(buildKpis(sum));
+      body.appendChild(buildStatusPanel(sum));
+
+      const attention = buildAttentionPanel(orders);
+      if (attention) body.appendChild(attention);
+
+      const months = aggregate(
+        orders.filter(function (o) { return typeof o.diningDateKey === 'number'; }),
+        function (o) {
+          const d = new Date(o.diningDateKey);
+          return d.getFullYear() + '/' + String(d.getMonth() + 1).padStart(2, '0');
+        }
+      ).sort(function (a, b) { return a.key < b.key ? -1 : 1; });
+      if (months.length >= 2) body.appendChild(buildMonthPanel(months));
+
+      if (role === 'admin' && !reportFilter.rc && !$('rcFilter').hidden) {
+        body.appendChild(buildTablePanel('rc', '各 RC 表現', aggregate(orders, function (o) { return nameOrNone(o.rc); }), {
+          nameLabel: 'RC',
+          emptyName: '（未設定 RC）',
+          hint: '點一下只看該 RC',
+          onClick: function (g) {
+            reportFilter.rc = g.key;
+            $('rcFilter').value = g.key;
+            reportFilter.ac = '';
+            rebuildAcFilter();
+            renderReport();
+            window.scrollTo(0, 0);
+          }
+        }));
+      }
+
+      if (!reportFilter.ac) {
+        body.appendChild(buildTablePanel('ac', '各 AC 表現', aggregate(orders, function (o) { return nameOrNone(o.ac); }), {
+          nameLabel: 'AC',
+          emptyName: '（未對應 AC）',
+          hint: '點一下查看該 AC 的訂單明細',
+          onClick: function (g) { if (g.key !== NONE_KEY) openDetail(g.key, ''); }
+        }));
+      }
+
+      const stores = aggregate(orders, function (o) { return o.storeName; });
+      body.appendChild(buildTablePanel('store', '各門市表現', stores, {
+        nameLabel: '門市',
+        extra: { label: 'AC', get: function (g) { return g.sample.ac || '—'; } },
+        hint: '點一下查看該門市的訂單',
+        limit: showAllStores ? 0 : 10,
+        onClick: function (g) { if (g.sample.ac) openDetail(g.sample.ac, g.key); }
+      }));
+
+      body.appendChild(el('p', 'footnote',
+        '統計範圍：已寄出通知、已分配門市的訂單；期間依「用餐日期」篩選。' +
+        '成交率 ＝ 已成交 ÷（已成交＋已流失），只計算已結案的訂單。' +
+        '「需注意」＝ 尚未聯繫或待下單、且用餐日在 2 天內（含已過）。'));
+    }
+
+    function kpi(labelText, value, sub, opts) {
+      const box = el('div', 'kpi' + (opts && opts.warn ? ' warn' : ''));
+      const lab = el('div', 'kpi-label');
+      if (opts && opts.icon) lab.appendChild(iconEl(opts.icon, 'ic-sm'));
+      lab.appendChild(document.createTextNode(labelText));
+      box.appendChild(lab);
+      box.appendChild(el('div', 'kpi-value', value));
+      box.appendChild(el('div', 'kpi-sub', sub));
+      return box;
+    }
+
+    function buildKpis(s) {
+      const box = el('section', 'kpis');
+      box.setAttribute('aria-label', '重點數字');
+      box.appendChild(kpi('訂單數', s.total.toLocaleString('zh-TW'), '處理中 ' + s.open + ' 筆'));
+      box.appendChild(kpi('成交金額', formatMoney(s.amount), s.won ? s.won + ' 筆成交' : '尚無成交'));
+      box.appendChild(kpi('成交率', pct(s.won, s.won + s.lost), '已結案 ' + (s.won + s.lost) + ' 筆'));
+      box.appendChild(kpi('平均成交金額', s.won ? formatMoney(s.amount / s.won) : '—', '每筆成交訂單'));
+      box.appendChild(kpi('尚未聯繫', s.counts[STATUS_PENDING], '佔全部 ' + pct(s.counts[STATUS_PENDING], s.total)));
+      box.appendChild(kpi('需注意', s.attention, '2 天內用餐仍未成交', { warn: s.attention > 0, icon: 'alert' }));
+      return box;
+    }
+
+    function panel(title, sub) {
+      const p = el('section', 'panel');
+      const head = el('div', 'panel-head');
+      head.appendChild(el('h2', 'panel-title', title));
+      if (sub) head.appendChild(el('span', 'panel-sub', sub));
+      p.appendChild(head);
+      return p;
+    }
+
+    // 一條 100% 堆疊長條 + 每段 tooltip
+    function stackBar(counts, total, mini, tipPrefix) {
+      const bar = el('div', 'stackbar' + (mini ? ' mini' : ''));
+      bar.setAttribute('role', 'img');
+      bar.setAttribute('aria-label', STATUSES.map(function (s) { return label(s) + ' ' + (counts[s] || 0); }).join('、'));
+      STATUSES.forEach(function (s) {
+        const n = counts[s] || 0;
+        if (!n) return;
+        const seg = el('div', 'seg ' + sClass(s));
+        seg.style.flexGrow = n;
+        seg.dataset.tip = (tipPrefix ? tipPrefix + '・' : '') + label(s) + ' ' + n + ' 筆（' + pct(n, total) + '）';
+        bar.appendChild(seg);
+      });
+      return bar;
+    }
+
+    function legend(counts, total) {
+      const box = el('div', 'legend');
+      STATUSES.forEach(function (s) {
+        const item = el('div', 'legend-item ' + sClass(s));
+        item.appendChild(el('span', 'swatch'));
+        item.appendChild(el('span', null, label(s)));
+        if (counts) {
+          item.appendChild(el('span', 'legend-num', counts[s] || 0));
+          item.appendChild(el('span', 'legend-pct', pct(counts[s] || 0, total)));
+        }
+        box.appendChild(item);
+      });
+      return box;
+    }
+
+    function buildStatusPanel(s) {
+      const p = panel('狀態分布', '共 ' + s.total + ' 筆');
+      p.appendChild(stackBar(s.counts, s.total, false, ''));
+      p.appendChild(legend(s.counts, s.total));
+      return p;
+    }
+
+    function buildAttentionPanel(orders) {
+      const items = orders.filter(isAttention).sort(byDiningDate);
+      if (!items.length) return null;
+      const p = panel('需要注意', items.length + ' 筆用餐日 2 天內（或已過）仍未成交');
+      const list = el('div', 'attn-list');
+      items.slice(0, 8).forEach(function (o) {
+        const btn = el('button', 'attn-item');
+        btn.type = 'button';
+        const main = el('div', 'attn-main');
+        main.appendChild(el('div', 'attn-title', hasValue(o.customer) ? o.customer : o.storeName));
+        main.appendChild(el('div', 'attn-sub', o.storeName + '・' + (o.ac || '未對應 AC') + (o.diningDate ? '・' + o.diningDate : '')));
+        btn.appendChild(main);
+        const side = el('div', 'attn-side');
+        side.appendChild(statusPill(o.status));
+        const due = dueTag(o);
+        if (due) side.appendChild(due);
+        btn.appendChild(side);
+        btn.addEventListener('click', function () {
+          if (o.ac) openDetail(o.ac, hasValue(o.customer) ? o.customer : o.storeName);
+        });
+        list.appendChild(btn);
+      });
+      p.appendChild(list);
+      if (items.length > 8) {
+        p.appendChild(el('p', 'footnote', '還有 ' + (items.length - 8) + ' 筆，可在下方表格點進各 AC 查看。'));
+      }
+      return p;
+    }
+
+    function buildMonthPanel(months) {
+      const p = panel('依用餐月份', '每月訂單數與狀態');
+      const PLOT_H = 140;
+      const max = Math.max.apply(null, months.map(function (m) { return m.total; }));
+      const scroll = el('div', 'cols-scroll');
+      const cols = el('div', 'cols');
+      let lastYear = '';
+      months.forEach(function (m) {
+        const y = m.key.slice(0, 4);
+        const mo = Number(m.key.slice(5));
+        const col = el('div', 'col');
+        col.appendChild(el('div', 'col-total', m.total));
+        const stack = el('div', 'col-stack');
+        stack.style.height = Math.max(4, Math.round(m.total / max * PLOT_H)) + 'px';
+        STATUSES.forEach(function (s) {
+          const n = m.counts[s] || 0;
+          if (!n) return;
+          const seg = el('div', 'seg ' + sClass(s));
+          seg.style.flexGrow = n;
+          seg.dataset.tip = y + '/' + mo + '月・' + label(s) + ' ' + n + ' 筆';
+          stack.appendChild(seg);
+        });
+        col.appendChild(stack);
+        const axis = el('div', 'col-axis', mo + '月');
+        if (y !== lastYear) axis.appendChild(el('small', null, y));
+        lastYear = y;
+        col.appendChild(axis);
+        cols.appendChild(col);
+      });
+      scroll.appendChild(cols);
+      p.appendChild(scroll);
+      p.appendChild(legend(null, 0));
+
+      // 數字表(圖表的文字版)
+      const details = el('details', 'numbers');
+      details.appendChild(el('summary', null, '查看數字表'));
+      const wrap = el('div', 'tbl-wrap');
+      const table = el('table', 'tbl');
+      const thead = el('thead');
+      const hr = el('tr');
+      ['月份', '訂單'].concat(STATUSES.map(label)).concat(['成交金額']).forEach(function (h) { hr.appendChild(el('th', null, h)); });
+      thead.appendChild(hr);
+      table.appendChild(thead);
+      const tbody = el('tbody');
+      months.forEach(function (m) {
+        const tr = el('tr');
+        tr.appendChild(el('td', null, m.key));
+        tr.appendChild(el('td', null, m.total));
+        STATUSES.forEach(function (s) { tr.appendChild(el('td', null, m.counts[s] || 0)); });
+        tr.appendChild(el('td', null, m.amount ? formatMoney(m.amount) : '—'));
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      wrap.appendChild(table);
+      details.appendChild(wrap);
+      p.appendChild(details);
+      return p;
+    }
+
+    // 可排序的統計表:名稱 / (額外欄) / 訂單 / 分布 / 四個狀態 / 成交率 / 成交金額
+    function buildTablePanel(id, title, groups, opts) {
+      const sort = tableSort[id] || { key: 'total', dir: -1 };
+      const valueOf = {
+        name: function (g) { return g.key === NONE_KEY ? '￿' : g.key; },
+        total: function (g) { return g.total; },
+        rate: function (g) { return g.rate === null ? -1 : g.rate; },
+        amount: function (g) { return g.amount; }
+      };
+      STATUSES.forEach(function (s) { valueOf['s:' + s] = function (g) { return g.counts[s] || 0; }; });
+
+      const rows = groups.slice().sort(function (a, b) {
+        const va = valueOf[sort.key](a);
+        const vb = valueOf[sort.key](b);
+        if (typeof va === 'string') return va.localeCompare(vb) * sort.dir;
+        if (va !== vb) return (va - vb) * sort.dir;
+        return b.total - a.total;
+      });
+
+      const p = panel(title, groups.length + (id === 'store' ? ' 間' : ' 位') + (opts.hint ? '・' + opts.hint : ''));
+      const wrap = el('div', 'tbl-wrap');
+      const table = el('table', 'tbl');
+      const thead = el('thead');
+      const hr = el('tr');
+
+      function th(text, key) {
+        const cell = el('th');
+        if (!key) {
+          cell.textContent = text;
+          return cell;
+        }
+        const b = el('button');
+        b.type = 'button';
+        b.textContent = text;
+        if (sort.key === key) {
+          cell.setAttribute('aria-sort', sort.dir === -1 ? 'descending' : 'ascending');
+          b.appendChild(document.createTextNode(sort.dir === -1 ? ' ↓' : ' ↑'));
+        }
+        b.addEventListener('click', function () {
+          tableSort[id] = { key: key, dir: sort.key === key ? -sort.dir : (key === 'name' ? 1 : -1) };
+          renderReport();
+        });
+        cell.appendChild(b);
+        return cell;
+      }
+
+      hr.appendChild(th(opts.nameLabel, 'name'));
+      if (opts.extra) hr.appendChild(th(opts.extra.label));
+      hr.appendChild(th('訂單', 'total'));
+      hr.appendChild(th('狀態分布'));
+      STATUSES.forEach(function (s) { hr.appendChild(th(label(s), 's:' + s)); });
+      hr.appendChild(th('成交率', 'rate'));
+      hr.appendChild(th('成交金額', 'amount'));
+      thead.appendChild(hr);
+      table.appendChild(thead);
+
+      const tbody = el('tbody');
+      const shown = opts.limit ? rows.slice(0, opts.limit) : rows;
+      shown.forEach(function (g) {
+        const tr = el('tr', opts.onClick ? 'clickable' : '');
+        const name = g.key === NONE_KEY ? (opts.emptyName || '—') : g.key;
+        tr.appendChild(el('td', 'name-cell' + (g.key === NONE_KEY ? ' muted' : ''), name));
+        if (opts.extra) tr.appendChild(el('td', 'left muted', opts.extra.get(g)));
+        tr.appendChild(el('td', null, g.total));
+        const distCell = el('td');
+        distCell.appendChild(stackBar(g.counts, g.total, true, name));
+        tr.appendChild(distCell);
+        STATUSES.forEach(function (s) {
+          const n = g.counts[s] || 0;
+          tr.appendChild(el('td', n ? '' : 'muted', n));
+        });
+        tr.appendChild(el('td', g.rate === null ? 'muted' : '', g.rate === null ? '—' : Math.round(g.rate * 100) + '%'));
+        tr.appendChild(el('td', g.amount ? '' : 'muted', g.amount ? formatMoney(g.amount) : '—'));
+        if (opts.onClick) {
+          tr.tabIndex = 0;
+          tr.addEventListener('click', function () { opts.onClick(g); });
+          tr.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              opts.onClick(g);
+            }
+          });
+        }
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      wrap.appendChild(table);
+      p.appendChild(wrap);
+
+      if (opts.limit && rows.length > opts.limit) {
+        const more = el('button', 'btn btn-secondary btn-small tbl-more', '顯示全部 ' + rows.length + ' 間');
+        more.type = 'button';
+        more.addEventListener('click', function () {
+          showAllStores = true;
+          renderReport();
+        });
+        p.appendChild(more);
+      } else if (id === 'store' && showAllStores && rows.length > 10) {
+        const less = el('button', 'btn btn-secondary btn-small tbl-more', '只顯示前 10 間');
+        less.type = 'button';
+        less.addEventListener('click', function () {
+          showAllStores = false;
+          renderReport();
+        });
+        p.appendChild(less);
+      }
+      return p;
     }
 
     let savedPw = '';
