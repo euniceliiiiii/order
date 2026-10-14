@@ -1132,16 +1132,19 @@
       align-items: center;
     }
 
-    /* 表格:手機上可左右滑,第一欄固定 */
+    /* 表格:手機上可左右滑,第一欄固定。
+       捲動容器本身不能有左右 padding(sticky 會停在 padding 內緣,左邊會露出一條滑過去的資料),
+       改成由第一欄 / 最後一欄自己留白 */
     .tbl-wrap {
       overflow-x: auto;
       margin: 0 -16px;
-      padding: 0 16px;
+      padding: 0;
     }
 
     .tbl {
       width: 100%;
-      border-collapse: collapse;
+      border-collapse: separate;
+      border-spacing: 0;
       font-size: 14px;
       white-space: nowrap;
     }
@@ -1152,6 +1155,12 @@
       border-bottom: 1px solid var(--grid);
       text-align: right;
       font-variant-numeric: tabular-nums;
+      background: var(--surface);
+    }
+
+    .tbl th:last-child,
+    .tbl td:last-child {
+      padding-right: 16px;
     }
 
     .tbl th:first-child,
@@ -1159,11 +1168,13 @@
       text-align: left;
       position: sticky;
       left: 0;
-      background: var(--surface);
-      z-index: 1;
-      max-width: 160px;
+      z-index: 2;
+      padding-left: 16px;
+      max-width: 176px;
       overflow: hidden;
       text-overflow: ellipsis;
+      /* 右側細線 + 淡陰影,讓人看出這欄是固定的 */
+      box-shadow: inset -1px 0 0 var(--grid), 6px 0 8px -6px rgba(0, 0, 0, .18);
     }
 
     .tbl th {
@@ -1781,8 +1792,9 @@
         role = res.role;
 
         if (role === 'ac') {
+          // AC 主要工作是更新狀態,預設停在「訂單明細」;報表只含自己名下門市
           setIdentity(res.ac, '只會看到你名下門市的訂單');
-          $('viewSwitchWrap').hidden = true;
+          $('viewSwitchWrap').hidden = false;
           $('adminPicker').hidden = true;
           setView('detail', true);
           loadOrders(res.ac);
@@ -2354,6 +2366,13 @@
     }
 
     function rebuildAcFilter() {
+      // AC 的報表只有自己,不需要 AC 篩選
+      $('acFilter').hidden = role === 'ac';
+      $('filterSelects').hidden = role === 'ac';
+      if (role === 'ac') {
+        reportFilter.ac = '';
+        return;
+      }
       const acs = distinct(reportOrders.filter(matchRc).map(function (o) { return nameOrNone(o.ac); }));
       fillFilterSelect($('acFilter'), '全部 AC', acs, '（未對應 AC）', reportFilter.ac);
       reportFilter.ac = $('acFilter').value;
@@ -2461,7 +2480,7 @@
         }));
       }
 
-      if (!reportFilter.ac) {
+      if (!reportFilter.ac && role !== 'ac') {
         body.appendChild(buildTablePanel('ac', '各 AC 表現', aggregate(orders, function (o) { return nameOrNone(o.ac); }), {
           nameLabel: 'AC',
           emptyName: '（未對應 AC）',
@@ -2473,7 +2492,7 @@
       const stores = aggregate(orders, function (o) { return o.storeName; });
       body.appendChild(buildTablePanel('store', '各門市表現', stores, {
         nameLabel: '門市',
-        extra: { label: 'AC', get: function (g) { return g.sample.ac || '—'; } },
+        extra: role === 'ac' ? null : { label: 'AC', get: function (g) { return g.sample.ac || '—'; } },
         hint: '點一下查看該門市的訂單',
         limit: showAllStores ? 0 : 10,
         onClick: function (g) { if (g.sample.ac) openDetail(g.sample.ac, g.key); }
