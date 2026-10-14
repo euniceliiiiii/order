@@ -1,0 +1,1088 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>AC 節點回報</title>
+  <style>
+    /* 這個頁面現在是獨立架設的一般網頁(不再被 Google 包在 iframe 裡),
+       viewport 設定會正常生效,下面的 px 數值都是正常尺寸,不用再做任何縮放補償。*/
+    :root {
+      --blue: #4285f4;
+      --blue-dark: #3367d6;
+      --green: #34a853;
+      --green-dark: #2d9249;
+      --red: #ea4335;
+      --orange: #f29900;
+      --gray-bg: #f6f7f9;
+      --gray-border: #e0e3e8;
+      --gray-text: #5f6368;
+      --radius: 14px;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html {
+      -webkit-text-size-adjust: 100%;
+    }
+
+    body {
+      font-family: 'Google Sans', 'Segoe UI', Arial, sans-serif;
+      font-size: 19.2px;
+      color: #202124;
+      background: var(--gray-bg);
+      margin: 0;
+      padding: 0;
+    }
+
+    /* ---------- Header ---------- */
+    .header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: #fff;
+      padding: 18px 18px 14px;
+      border-bottom: 0.8px solid var(--gray-border);
+    }
+
+    .header-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .header-title-wrap {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .header-title {
+      font-size: 26px;
+      font-weight: 700;
+    }
+
+    .header-count {
+      font-size: 15.2px;
+      font-weight: 700;
+      color: var(--blue);
+      background: #eef2fc;
+      padding: 4.8px 14px;
+      border-radius: 20px;
+    }
+
+    .refresh-btn {
+      border: none;
+      background: var(--gray-bg);
+      color: var(--gray-text);
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 22px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform .3s, background .2s;
+      flex-shrink: 0;
+    }
+
+    .refresh-btn:hover {
+      background: #e8eaed;
+    }
+
+    .refresh-btn.spinning {
+      animation: spin .7s linear;
+    }
+
+    @keyframes spin {
+      from {
+        transform: rotate(0);
+      }
+
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .status-line {
+      font-size: 14px;
+      color: #9aa0a6;
+      margin-top: 6px;
+      min-height: 16px;
+    }
+
+    /* ---------- AC 身份選擇 ---------- */
+    .field {
+      margin-top: 14px;
+    }
+
+    .field-label {
+      font-size: 15.2px;
+      font-weight: 700;
+      color: var(--gray-text);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .field-select {
+      width: 100%;
+      font-family: inherit;
+      font-size: 18px;
+      padding: 14px 16px;
+      border: 0.8px solid var(--gray-border);
+      border-radius: 11.2px;
+      background: #fafbfc;
+      color: #333;
+      appearance: none;
+      -webkit-appearance: none;
+      background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%235f6368'><path d='M7 10l5 5 5-5z'/></svg>");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      background-size: 16px;
+    }
+
+    .field-select:focus {
+      outline: 0.8px solid var(--blue);
+    }
+
+    .field-select.placeholder {
+      color: #9aa0a6;
+    }
+
+    .field input[type="number"] {
+      width: 100%;
+      font-family: inherit;
+      font-size: 18px;
+      padding: 14px 16px;
+      border: 0.8px solid var(--gray-border);
+      border-radius: 11.2px;
+      background: #fafbfc;
+      color: #333;
+    }
+
+    .field input[type="number"]:focus {
+      outline: 0.8px solid var(--blue);
+    }
+
+    /* ---------- 分頁籤(未結案 / 已結案) ---------- */
+    .tab-row {
+      display: flex;
+      gap: 0;
+      margin-top: 14px;
+      border-bottom: 2px solid var(--gray-border);
+    }
+
+    .tab-btn {
+      flex: 1;
+      border: none;
+      background: none;
+      cursor: pointer;
+      padding: 8px 0 7.2px;
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--gray-text);
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+    }
+
+    .tab-btn.active {
+      color: var(--blue);
+    }
+
+    .tab-btn.active::after {
+      content: '';
+      position: absolute;
+      left: 10%;
+      right: 10%;
+      bottom: -2px;
+      height: 3.2px;
+      background: var(--blue);
+      border-radius: 3.2px 3.2px 0 0;
+    }
+
+    .tab-count {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--blue);
+      background: #eef2fc;
+      padding: 1.6px 6px;
+      border-radius: 20px;
+    }
+
+    .tab-btn.active .tab-count {
+      background: var(--blue);
+      color: #fff;
+    }
+
+    /* ---------- List ---------- */
+    #list {
+      padding: 16px;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: var(--radius);
+      border: 0.8px solid var(--gray-border);
+      box-shadow: 0 0.8px 2px rgba(0, 0, 0, 0.04);
+      padding: 20px;
+      margin-bottom: 18px;
+      border-left: 4.8px solid var(--blue);
+      transition: opacity .4s ease, max-height .4s ease, margin .4s ease, padding .4s ease, transform .4s ease;
+      max-height: 1200px;
+      overflow: hidden;
+    }
+
+    .card.st-pending {
+      border-left-color: var(--blue);
+    }
+
+    .card.st-notordered {
+      border-left-color: var(--orange);
+    }
+
+    .card.st-won {
+      border-left-color: var(--green);
+    }
+
+    .card.st-lost {
+      border-left-color: var(--red);
+    }
+
+    .card-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 4px;
+      gap: 8px;
+    }
+
+    .store-name {
+      font-size: 20px;
+      font-weight: 700;
+    }
+
+    .badge-group {
+      display: flex;
+      gap: 6px;
+      flex-shrink: 0;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .badge {
+      font-size: 14px;
+      padding: 6px 12.8px;
+      border-radius: 20px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .badge.warn {
+      background: #fdecea;
+      color: var(--red);
+    }
+
+    .badge.ok {
+      background: #e6f4ea;
+      color: var(--green-dark);
+    }
+
+    .badge.overdue {
+      background: #fef3e0;
+      color: var(--orange);
+    }
+
+    .badge.pending {
+      background: #eef2fc;
+      color: var(--blue);
+    }
+
+    .time-tag {
+      font-size: 14px;
+      color: #9aa0a6;
+      margin-bottom: 12px;
+    }
+
+    .urgent-text {
+      font-size: 15.2px;
+      color: var(--orange);
+      margin-bottom: 12px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .urgent-text.overdue-text {
+      color: var(--red);
+    }
+
+    /* 訂單詳細資訊:輕量的 label/value 列表,不用輸入框包起來,
+       因為這裡只是顯示,不需要複製或編輯 */
+    .info-grid {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 0.8px solid var(--gray-border);
+      display: flex;
+      flex-direction: column;
+      gap: 8.8px;
+    }
+
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 12px;
+    }
+
+    .info-row .k {
+      font-size: 14px;
+      color: var(--gray-text);
+      flex-shrink: 0;
+    }
+
+    .info-row .v {
+      font-size: 16px;
+      font-weight: 700;
+      text-align: right;
+      word-break: break-word;
+    }
+
+    .action-row {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 18px;
+    }
+
+    .btn {
+      width: 100%;
+      border-radius: 14px;
+      padding: 18px 0;
+      font-size: 18px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: background .15s, transform .1s, border-color .15s;
+      min-height: 58px;
+    }
+
+    .btn:active {
+      transform: scale(0.97);
+    }
+
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: default;
+      transform: none;
+    }
+
+    .btn-save {
+      border: none;
+      background: var(--blue);
+      color: #fff;
+    }
+
+    .btn-save:hover {
+      background: var(--blue-dark);
+    }
+
+    .btn-save.saved {
+      background: var(--green);
+    }
+
+    /* ---------- Empty / Error / Prompt states ---------- */
+    .empty,
+    .loading,
+    .prompt {
+      text-align: center;
+      color: #9aa0a6;
+      margin-top: 60px;
+      font-size: 16.8px;
+      padding: 0 24px;
+    }
+
+    .empty .icon,
+    .loading .icon,
+    .prompt .icon {
+      font-size: 60px;
+      margin-bottom: 14px;
+    }
+
+    .error-box {
+      background: #fdecea;
+      border: 0.8px solid #f6c6c1;
+      border-radius: var(--radius);
+      padding: 18px;
+      color: #b71c1c;
+      font-size: 14px;
+      white-space: pre-wrap;
+      line-height: 1.7;
+      margin: 16px;
+    }
+
+    .error-box .title {
+      font-weight: 700;
+      margin-bottom: 8px;
+      display: block;
+      font-size: 16px;
+    }
+
+    .spinner {
+      width: 30px;
+      height: 30px;
+      border: 3.6px solid var(--gray-border);
+      border-top-color: var(--blue);
+      border-radius: 50%;
+      margin: 0 auto 14px;
+      animation: spin .8s linear infinite;
+    }
+
+    /* ---------- Toast ---------- */
+    #toast-wrap {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      padding: 16px;
+      padding-bottom: max(16px, env(safe-area-inset-bottom));
+      pointer-events: none;
+      z-index: 20;
+    }
+
+    .toast {
+      pointer-events: auto;
+      background: #323232;
+      color: #fff;
+      font-size: 16px;
+      padding: 14px 18px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity .25s ease, transform .25s ease;
+      max-width: 92vw;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .toast .msg {
+      flex: 1;
+    }
+
+    /* ---------- 登入 ---------- */
+    body.logged-out .needs-login {
+      display: none !important;
+    }
+
+    body:not(.logged-out) #loginPanel {
+      display: none;
+    }
+
+    .login-panel {
+      margin: 24px 16px;
+      background: #fff;
+      border: 0.8px solid var(--gray-border);
+      border-radius: var(--radius);
+      padding: 24px 20px;
+    }
+
+    .login-title {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .login-hint {
+      font-size: 14px;
+      color: var(--gray-text);
+      margin-bottom: 16px;
+    }
+
+    .login-panel input {
+      width: 100%;
+      font-family: inherit;
+      font-size: 18px;
+      padding: 14px 16px;
+      border: 0.8px solid var(--gray-border);
+      border-radius: 11.2px;
+      background: #fafbfc;
+      color: #333;
+      margin-bottom: 8px;
+    }
+
+    .login-panel input:focus {
+      outline: 0.8px solid var(--blue);
+    }
+
+    .login-error {
+      color: var(--red);
+      font-size: 14px;
+      min-height: 20px;
+      margin-bottom: 8px;
+      white-space: pre-wrap;
+    }
+
+    .login-btn {
+      width: 100%;
+      border: none;
+      border-radius: 14px;
+      background: var(--blue);
+      color: #fff;
+      font-size: 18px;
+      font-weight: 700;
+      min-height: 54px;
+      cursor: pointer;
+    }
+
+    .login-btn:disabled {
+      opacity: 0.6;
+      cursor: default;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .link-btn {
+      border: none;
+      background: none;
+      color: var(--blue);
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      padding: 8px;
+    }
+
+    .identity {
+      font-size: 18px;
+      font-weight: 700;
+    }
+  </style>
+</head>
+
+<body class="logged-out">
+  <div class="header">
+    <div class="header-top">
+      <div class="header-title-wrap">
+        <span class="header-title">📋 訂單節點回報</span>
+      </div>
+      <div class="header-actions needs-login">
+        <button class="link-btn" id="logoutBtn">登出</button>
+        <button class="refresh-btn" id="refreshBtn" title="重新整理">⟳</button>
+      </div>
+    </div>
+    <div class="status-line" id="status"></div>
+
+    <div class="field needs-login">
+      <div class="field-label">目前身份(AC)</div>
+      <div class="identity" id="identityText"></div>
+      <select class="field-select placeholder" id="acSelect" style="display:none;"></select>
+    </div>
+
+    <div class="tab-row needs-login" id="tabRow" style="display:none;">
+      <button class="tab-btn active" data-tab="open">
+        未結案 <span class="tab-count" id="openTabCount">0</span>
+      </button>
+      <button class="tab-btn" data-tab="closed">
+        已結案 <span class="tab-count" id="closedTabCount">0</span>
+      </button>
+    </div>
+  </div>
+
+  <form id="loginPanel" class="login-panel">
+    <div class="login-title">🔒 請輸入密碼</div>
+    <div class="login-hint">請輸入你的專屬密碼。登入後這支手機會記住，下次不用再輸入。</div>
+    <input type="password" id="pwInput" autocomplete="current-password" autocapitalize="off" placeholder="密碼">
+    <div class="login-error" id="loginError"></div>
+    <button type="submit" class="login-btn" id="loginBtn">登入</button>
+  </form>
+
+  <div id="list" class="needs-login"></div>
+
+  <div id="toast-wrap"></div>
+
+  <script>
+    // ⚠ 請把這裡換成你部署的 Apps Script API 網址(結尾是 /exec)
+    const API_BASE_URL = 'https://script.google.com/macros/s/AKfycbwBK4B7s-podG59uymZWGSvPp6xJA-wZT3An_CB9eibBsp-6fcTf-qaTDJh6LrRykfoIA/exec';
+
+    // 統一呼叫後端 API 的小工具:一律 POST + text/plain(避免 CORS preflight),並帶上登入密碼。
+    // 密碼錯誤/失效時直接跳回登入畫面,並回傳一個永遠不會完成的 Promise,讓呼叫端不會再蓋掉畫面
+    function gasCall(action, params) {
+      const body = Object.assign({ action: action, pw: password }, params || {});
+      return fetch(API_BASE_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(body)
+      }).then(parseApiResponse_, explainFetchError_).then(function (res) {
+        if (res && res.authError) {
+          showLogin('密碼錯誤或已失效，請重新輸入');
+          return new Promise(function () { });
+        }
+        return res;
+      });
+    }
+
+    // 後端回的不是 JSON(例如網址指到舊的 HTML 部署、或 Google 授權/錯誤頁)時給出看得懂的錯誤
+    function parseApiResponse_(r) {
+      return r.text().then(function (text) {
+        try { return JSON.parse(text); } catch (e) {
+          throw new Error('API 回傳的不是 JSON(可能 API_BASE_URL 指到的不是 apps-script-api 的部署,或尚未授權)。開頭內容:' + text.slice(0, 120));
+        }
+      });
+    }
+
+    // 跨網域時瀏覽器只會給 "Failed to fetch",補上最常見的原因
+    function explainFetchError_(err) {
+      throw new Error(err.message + '\n可能原因:① API_BASE_URL 不是 apps-script-api 的 /exec 網址(回傳 HTML 頁面時瀏覽器會擋 CORS);② 頁面放在禁止對外連線的環境(例如 Claude Artifact);③ 網路中斷。');
+    }
+
+    const NO_VALUE_TEXT = '顧客未提供';
+    const STATUS_PENDING = '待聯繫';
+    const STATUS_NOT_ORDERED = '未下單';
+    const STATUS_WON = '已成單';
+    const STATUS_LOST = '未成單';
+    const CLOSED_STATUSES = [STATUS_WON, STATUS_LOST];
+    const PW_STORAGE_KEY = 'ac_report_pw';
+
+    let allOrders = [];
+    let currentTab = 'open';
+    let currentAc = '';
+    let password = '';
+    let isAdmin = false;
+    let loadingTimeout;
+
+    document.getElementById('refreshBtn').addEventListener('click', function () {
+      this.classList.add('spinning');
+      if (currentAc) {
+        logAction('重新整理', '');
+        loadOrders(currentAc);
+      }
+      setTimeout(() => this.classList.remove('spinning'), 700);
+    });
+
+    // 只有管理員會看到這個下拉選單,用來切換查看任一位 AC
+    document.getElementById('acSelect').addEventListener('change', function () {
+      const ac = this.value;
+      this.classList.toggle('placeholder', !ac);
+      if (!ac) return;
+      loadOrders(ac);
+      logAction('切換查看 AC', ac);
+    });
+
+    document.getElementById('loginPanel').addEventListener('submit', function (e) {
+      e.preventDefault();
+      const pw = document.getElementById('pwInput').value.trim();
+      if (pw) login(pw, false);
+    });
+
+    document.getElementById('logoutBtn').addEventListener('click', function () {
+      logAction('登出', '');
+      showLogin('');
+    });
+
+    document.getElementById('tabRow').addEventListener('click', function (e) {
+      const btn = e.target.closest('.tab-btn');
+      if (!btn) return;
+      currentTab = btn.dataset.tab;
+      document.querySelectorAll('.tab-btn').forEach(function (b) {
+        b.classList.toggle('active', b.dataset.tab === currentTab);
+      });
+      logAction('切換分頁', currentTab === 'open' ? '未結案' : '已結案');
+      renderCurrentTab();
+    });
+
+    // 記錄操作用的小工具:純粹記錄,失敗也不影響使用,所以不特別處理失敗情況
+    // (後端依密碼決定記在哪位 AC 名下;參數裡的 action/detail 改用 logAction/detail 避免跟
+    //  gasCall 自己的 action 分派參數撞名)
+    function logAction(action, detail) {
+      if (!password) return;
+      gasCall('logAcAction', { acEmail: currentAc, logAction: action, detail: detail || '' }).catch(function () { });
+    }
+
+    function setStatus(msg) {
+      document.getElementById('status').innerText = msg;
+    }
+
+    // ===== 登入 / 登出 =====
+    // 身份由密碼決定:AC 密碼只會拿到自己名下的訂單;管理員密碼可以切換查看任一位 AC
+    function login(pw, fromStorage) {
+      password = pw;
+      const btn = document.getElementById('loginBtn');
+      btn.disabled = true;
+      btn.innerText = '驗證中...';
+      document.getElementById('loginError').innerText = '';
+
+      gasCall('login').then(function (res) {
+        btn.disabled = false;
+        btn.innerText = '登入';
+        if (!res || !res.success) {
+          document.getElementById('loginError').innerText = res ? res.error : '後端回傳空值';
+          return;
+        }
+        try { localStorage.setItem(PW_STORAGE_KEY, pw); } catch (e) { /* 存不進去就算了,下次再輸入一次 */ }
+        document.getElementById('pwInput').value = '';
+        document.body.classList.remove('logged-out');
+        isAdmin = res.role === 'admin';
+
+        const select = document.getElementById('acSelect');
+        if (isAdmin) {
+          document.getElementById('identityText').innerText = '管理員(可切換查看任一 AC)';
+          fillAcSelect(res.acList || []);
+          select.style.display = '';
+          document.getElementById('tabRow').style.display = 'none';
+          showPrompt('請在上方選擇要查看的 AC');
+        } else {
+          document.getElementById('identityText').innerText = res.ac;
+          select.style.display = 'none';
+          loadOrders(res.ac);
+          logAction('開啟頁面', fromStorage ? '瀏覽器記住的密碼' : '輸入密碼登入');
+        }
+      }).catch(function (err) {
+        btn.disabled = false;
+        btn.innerText = '登入';
+        document.getElementById('loginError').innerText = err.message;
+      });
+    }
+
+    function showLogin(message) {
+      password = '';
+      isAdmin = false;
+      currentAc = '';
+      allOrders = [];
+      try { localStorage.removeItem(PW_STORAGE_KEY); } catch (e) { }
+      clearTimeout(loadingTimeout);
+      setStatus('');
+      document.body.classList.add('logged-out');
+      const btn = document.getElementById('loginBtn');
+      btn.disabled = false;
+      btn.innerText = '登入';
+      document.getElementById('loginError').innerText = message || '';
+    }
+
+    function fillAcSelect(acList) {
+      const select = document.getElementById('acSelect');
+      select.innerHTML = '';
+      select.classList.add('placeholder');
+      const placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.innerText = '請選擇要查看的 AC...';
+      select.appendChild(placeholder);
+      acList.forEach(function (ac) {
+        const opt = document.createElement('option');
+        opt.value = ac;
+        opt.innerText = ac;
+        select.appendChild(opt);
+      });
+    }
+
+    function showPrompt(message) {
+      const list = document.getElementById('list');
+      list.innerHTML = '';
+      const prompt = document.createElement('div');
+      prompt.className = 'prompt';
+      prompt.innerHTML = '<div class="icon">👋</div>';
+      prompt.appendChild(document.createTextNode(message));
+      list.appendChild(prompt);
+    }
+
+    function showErrorInList(message) {
+      const list = document.getElementById('list');
+      list.innerHTML = '';
+      const box = document.createElement('div');
+      box.className = 'error-box';
+      const title = document.createElement('span');
+      title.className = 'title';
+      title.innerText = '發生錯誤';
+      box.appendChild(title);
+      box.appendChild(document.createTextNode(message));
+      list.appendChild(box);
+    }
+
+    // ===== 讀取這位 AC 名下的訂單 =====
+    function loadOrders(acEmail) {
+      currentAc = acEmail;
+      document.getElementById('tabRow').style.display = '';
+      setStatus('載入中... ' + new Date().toLocaleTimeString());
+      const list = document.getElementById('list');
+      list.innerHTML = '';
+      const loading = document.createElement('div');
+      loading.className = 'loading';
+      loading.innerHTML = '<div class="spinner"></div>載入中...';
+      list.appendChild(loading);
+
+      loadingTimeout = setTimeout(function () {
+        setStatus('已等待超過 10 秒，尚無回應，請確認 Apps Script 執行紀錄');
+      }, 10000);
+
+      gasCall('getOrdersForAc', { ac: acEmail }).then(onOrdersLoaded).catch(function (err) {
+        clearTimeout(loadingTimeout);
+        showErrorInList(err.message);
+      });
+    }
+
+    function onOrdersLoaded(result) {
+      clearTimeout(loadingTimeout);
+      setStatus('更新於 ' + new Date().toLocaleTimeString());
+      if (!result || !result.success) {
+        showErrorInList(result ? result.error : '後端回傳空值');
+        return;
+      }
+      allOrders = result.orders || [];
+      renderCurrentTab();
+    }
+
+    function sortByDaysUntil(orders) {
+      return orders.slice().sort(function (a, b) {
+        const da = (typeof a.daysUntil === 'number') ? a.daysUntil : Infinity;
+        const db = (typeof b.daysUntil === 'number') ? b.daysUntil : Infinity;
+        return da - db;
+      });
+    }
+
+    function renderCurrentTab() {
+      const openOrders = sortByDaysUntil(allOrders.filter(function (o) { return CLOSED_STATUSES.indexOf(o.status) === -1; }));
+      const closedOrders = sortByDaysUntil(allOrders.filter(function (o) { return CLOSED_STATUSES.indexOf(o.status) !== -1; }));
+
+      document.getElementById('openTabCount').innerText = openOrders.length;
+      document.getElementById('closedTabCount').innerText = closedOrders.length;
+
+      renderList(currentTab === 'open' ? openOrders : closedOrders);
+    }
+
+    function statusClass(status) {
+      if (status === STATUS_PENDING) return 'st-pending';
+      if (status === STATUS_NOT_ORDERED) return 'st-notordered';
+      if (status === STATUS_WON) return 'st-won';
+      if (status === STATUS_LOST) return 'st-lost';
+      return '';
+    }
+
+    function statusBadgeClass(status) {
+      if (status === STATUS_PENDING) return 'badge pending';
+      if (status === STATUS_NOT_ORDERED) return 'badge overdue';
+      if (status === STATUS_WON) return 'badge ok';
+      if (status === STATUS_LOST) return 'badge warn';
+      return 'badge';
+    }
+
+    function makeInfoRow(label, value) {
+      const row = document.createElement('div');
+      row.className = 'info-row';
+      const k = document.createElement('span');
+      k.className = 'k';
+      k.innerText = label;
+      const v = document.createElement('span');
+      v.className = 'v';
+      v.innerText = value || NO_VALUE_TEXT;
+      row.appendChild(k);
+      row.appendChild(v);
+      return row;
+    }
+
+    function renderList(orders) {
+      const list = document.getElementById('list');
+      list.innerHTML = '';
+
+      if (!orders || orders.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'empty';
+        empty.innerHTML = '<div class="icon">🎉</div>' +
+          (currentTab === 'open' ? '目前沒有未結案的訂單' : '目前沒有已結案的訂單');
+        list.appendChild(empty);
+        return;
+      }
+
+      orders.forEach(function (o) {
+        const card = document.createElement('div');
+        card.className = 'card ' + statusClass(o.status);
+        card.id = 'order-' + o.rowIndex;
+
+        const top = document.createElement('div');
+        top.className = 'card-top';
+        const name = document.createElement('span');
+        name.className = 'store-name';
+        name.innerText = o.customer && o.customer !== NO_VALUE_TEXT ? o.customer : o.storeName;
+        top.appendChild(name);
+
+        const badgeGroup = document.createElement('span');
+        badgeGroup.className = 'badge-group';
+        const badge = document.createElement('span');
+        badge.className = statusBadgeClass(o.status);
+        badge.innerText = o.status;
+        badgeGroup.appendChild(badge);
+        top.appendChild(badgeGroup);
+        card.appendChild(top);
+
+        const timeTag = document.createElement('div');
+        timeTag.className = 'time-tag';
+        timeTag.innerText = o.storeName;
+        card.appendChild(timeTag);
+
+        // 「未下單」且用餐日期逼近/已過期時,額外提示
+        if (o.status === STATUS_NOT_ORDERED && typeof o.daysUntil === 'number' && o.daysUntil <= 2) {
+          const urgent = document.createElement('div');
+          const overdue = o.daysUntil < 0;
+          urgent.className = 'urgent-text' + (overdue ? ' overdue-text' : '');
+          urgent.innerText = overdue
+            ? ('⚠ 用餐日期已過 ' + Math.abs(o.daysUntil) + ' 天,仍未下單')
+            : (o.daysUntil === 0 ? '⚠ 用餐日期就是今天,仍未下單' : ('⚠ 用餐日期剩 ' + o.daysUntil + ' 天,仍未下單'));
+          card.appendChild(urgent);
+        }
+
+        const info = document.createElement('div');
+        info.className = 'info-grid';
+        info.appendChild(makeInfoRow('用餐日期', o.diningDate + (o.timeSlot && o.timeSlot !== NO_VALUE_TEXT ? '(' + o.timeSlot + ')' : '')));
+        info.appendChild(makeInfoRow('聯絡電話', o.phone));
+        info.appendChild(makeInfoRow('預計人數', o.people));
+        info.appendChild(makeInfoRow('預算範圍', o.budget));
+        if (o.status === STATUS_WON && o.dealAmount) {
+          info.appendChild(makeInfoRow('成單金額', 'NT$ ' + o.dealAmount));
+        }
+        if (o.status === STATUS_WON && o.dealTime) {
+          info.appendChild(makeInfoRow('成單時間', o.dealTime));
+        }
+        card.appendChild(info);
+
+        // ---- 節點狀態變更區 ----
+        const statusField = document.createElement('div');
+        statusField.className = 'field';
+        const statusLabel = document.createElement('div');
+        statusLabel.className = 'field-label';
+        statusLabel.innerText = '更新節點狀態';
+        statusField.appendChild(statusLabel);
+
+        const select = document.createElement('select');
+        select.className = 'field-select';
+        [STATUS_PENDING, STATUS_NOT_ORDERED, STATUS_WON, STATUS_LOST].forEach(function (s) {
+          const opt = document.createElement('option');
+          opt.value = s;
+          opt.innerText = s;
+          if (s === o.status) opt.selected = true;
+          select.appendChild(opt);
+        });
+        statusField.appendChild(select);
+        card.appendChild(statusField);
+
+        // 成單金額輸入:只有選到「已成單」才顯示
+        const amountField = document.createElement('div');
+        amountField.className = 'field';
+        amountField.style.display = (select.value === STATUS_WON) ? '' : 'none';
+        const amountLabel = document.createElement('div');
+        amountLabel.className = 'field-label';
+        amountLabel.innerText = '成單金額';
+        amountField.appendChild(amountLabel);
+        const amountInput = document.createElement('input');
+        amountInput.type = 'number';
+        amountInput.min = '0';
+        amountInput.placeholder = '請輸入成單金額';
+        if (o.status === STATUS_WON && o.dealAmount) amountInput.value = o.dealAmount;
+        amountField.appendChild(amountInput);
+        card.appendChild(amountField);
+
+        select.addEventListener('change', function () {
+          amountField.style.display = (select.value === STATUS_WON) ? '' : 'none';
+        });
+
+        const actionRow = document.createElement('div');
+        actionRow.className = 'action-row';
+        const saveBtn = document.createElement('button');
+        saveBtn.className = 'btn btn-save';
+        saveBtn.innerText = '💾 儲存節點狀態';
+        saveBtn.addEventListener('click', function () {
+          saveStatus(o, select.value, amountInput.value, saveBtn, card);
+        });
+        actionRow.appendChild(saveBtn);
+        card.appendChild(actionRow);
+
+        list.appendChild(card);
+      });
+    }
+
+    function saveStatus(order, newStatus, amountValue, btn, card) {
+      if (newStatus === STATUS_WON) {
+        const amt = Number(amountValue);
+        if (!amountValue || isNaN(amt) || amt <= 0) {
+          alert('選擇「已成單」時，請輸入有效的成單金額');
+          return;
+        }
+      }
+
+      btn.disabled = true;
+      btn.innerText = '儲存中...';
+
+      gasCall('updateNodeStatus', { submitTimeKey: order.submitTimeKey, newStatus: newStatus, dealAmount: amountValue })
+        .then(function (res) {
+          if (res && res.success) {
+            order.status = res.status;
+            order.dealAmount = (res.status === STATUS_WON) ? amountValue : '';
+            if (res.status !== STATUS_WON) order.dealTime = '';
+            btn.innerText = '✓ 已儲存';
+            btn.classList.add('saved');
+            showToast(order.storeName + ' 已更新為「' + res.status + '」');
+            logAction('更新節點狀態', order.storeName + '(' + (order.customer || '') + ') → ' + res.status);
+            setTimeout(function () {
+              renderCurrentTab();
+            }, 500);
+          } else {
+            alert('儲存失敗: ' + (res ? res.error : '未知錯誤'));
+            btn.disabled = false;
+            btn.innerText = '💾 儲存節點狀態';
+          }
+        })
+        .catch(function (err) {
+          alert('儲存失敗: ' + err.message);
+          btn.disabled = false;
+          btn.innerText = '💾 儲存節點狀態';
+        });
+    }
+
+    function showToast(message) {
+      const wrap = document.getElementById('toast-wrap');
+      const toast = document.createElement('div');
+      toast.className = 'toast';
+      const msg = document.createElement('span');
+      msg.className = 'msg';
+      msg.innerText = message;
+      toast.appendChild(msg);
+      wrap.appendChild(toast);
+      requestAnimationFrame(function () { toast.classList.add('show'); });
+      setTimeout(function () {
+        toast.classList.remove('show');
+        setTimeout(function () { toast.remove(); }, 250);
+      }, 3000);
+    }
+
+    let savedPw = '';
+    try { savedPw = localStorage.getItem(PW_STORAGE_KEY) || ''; } catch (e) { /* 讀不到就當作沒有 */ }
+    if (savedPw) login(savedPw, true);
+  </script>
+</body>
+
+</html>
