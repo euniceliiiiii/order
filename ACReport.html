@@ -4,21 +4,65 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#16181c" media="(prefers-color-scheme: dark)">
   <title>AC 節點回報</title>
   <style>
-    /* 這個頁面現在是獨立架設的一般網頁(不再被 Google 包在 iframe 裡),
-       viewport 設定會正常生效,下面的 px 數值都是正常尺寸,不用再做任何縮放補償。*/
+    /* ===== 設計變數(淺色 / 深色自動切換) ===== */
     :root {
-      --blue: #4285f4;
-      --blue-dark: #3367d6;
-      --green: #34a853;
-      --green-dark: #2d9249;
-      --red: #ea4335;
-      --orange: #f29900;
-      --gray-bg: #f6f7f9;
-      --gray-border: #e0e3e8;
-      --gray-text: #5f6368;
-      --radius: 14px;
+      color-scheme: light dark;
+      --bg: #f3f4f6;
+      --surface: #ffffff;
+      --surface-2: #f7f8fa;
+      --border: #e2e5ea;
+      --text: #1a1c20;
+      --text-2: #565c66;
+      --text-3: #8a909a;
+      --accent: #c8102e;
+      --accent-hover: #a30d25;
+      --accent-soft: #fdecef;
+      --blue: #1d5bd8;
+      --blue-soft: #e8effd;
+      --amber: #a85d00;
+      --amber-soft: #fdf2e0;
+      --green: #157a3a;
+      --green-soft: #e4f4ea;
+      --red: #c21f1f;
+      --red-soft: #fdeaea;
+      --gray: #5f6670;
+      --gray-soft: #eceef1;
+      --shadow: 0 1px 2px rgba(16, 24, 40, .05), 0 1px 3px rgba(16, 24, 40, .07);
+      --shadow-lg: 0 10px 30px rgba(16, 24, 40, .18);
+      --radius: 16px;
+      --radius-sm: 11px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #101215;
+        --surface: #1a1d21;
+        --surface-2: #22262b;
+        --border: #30353c;
+        --text: #eceef1;
+        --text-2: #aab0b9;
+        --text-3: #7c838d;
+        --accent: #e5384f;
+        --accent-hover: #f0566b;
+        --accent-soft: #3b1a20;
+        --blue: #86aeff;
+        --blue-soft: #1d2840;
+        --amber: #f3b95f;
+        --amber-soft: #382a14;
+        --green: #6bd495;
+        --green-soft: #183224;
+        --red: #ff8585;
+        --red-soft: #3c1c1c;
+        --gray: #a7adb6;
+        --gray-soft: #2a2e34;
+        --shadow: 0 0 0 1px rgba(255, 255, 255, .02);
+        --shadow-lg: 0 10px 30px rgba(0, 0, 0, .55);
+      }
     }
 
     * {
@@ -26,475 +70,61 @@
       -webkit-tap-highlight-color: transparent;
     }
 
+    [hidden] {
+      display: none !important;
+    }
+
     html {
       -webkit-text-size-adjust: 100%;
     }
 
     body {
-      font-family: 'Google Sans', 'Segoe UI', Arial, sans-serif;
-      font-size: 19.2px;
-      color: #202124;
-      background: var(--gray-bg);
       margin: 0;
-      padding: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
     }
 
-    /* ---------- Header ---------- */
-    .header {
-      position: sticky;
-      top: 0;
-      z-index: 10;
-      background: #fff;
-      padding: 18px 18px 14px;
-      border-bottom: 0.8px solid var(--gray-border);
+    button,
+    input,
+    select,
+    textarea {
+      font: inherit;
+      color: inherit;
     }
 
-    .header-top {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-
-    .header-title-wrap {
-      display: flex;
-      align-items: baseline;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-
-    .header-title {
-      font-size: 26px;
-      font-weight: 700;
-    }
-
-    .header-count {
-      font-size: 15.2px;
-      font-weight: 700;
-      color: var(--blue);
-      background: #eef2fc;
-      padding: 4.8px 14px;
-      border-radius: 20px;
-    }
-
-    .refresh-btn {
-      border: none;
-      background: var(--gray-bg);
-      color: var(--gray-text);
-      width: 48px;
-      height: 48px;
-      border-radius: 50%;
+    button {
       cursor: pointer;
-      font-size: 22px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: transform .3s, background .2s;
+    }
+
+    :focus-visible {
+      outline: 2px solid var(--blue);
+      outline-offset: 2px;
+    }
+
+    .ic {
+      width: 20px;
+      height: 20px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
       flex-shrink: 0;
-    }
-
-    .refresh-btn:hover {
-      background: #e8eaed;
-    }
-
-    .refresh-btn.spinning {
-      animation: spin .7s linear;
-    }
-
-    @keyframes spin {
-      from {
-        transform: rotate(0);
-      }
-
-      to {
-        transform: rotate(360deg);
-      }
-    }
-
-    .status-line {
-      font-size: 14px;
-      color: #9aa0a6;
-      margin-top: 6px;
-      min-height: 16px;
-    }
-
-    /* ---------- AC 身份選擇 ---------- */
-    .field {
-      margin-top: 14px;
-    }
-
-    .field-label {
-      font-size: 15.2px;
-      font-weight: 700;
-      color: var(--gray-text);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 8px;
-    }
-
-    .field-select {
-      width: 100%;
-      font-family: inherit;
-      font-size: 18px;
-      padding: 14px 16px;
-      border: 0.8px solid var(--gray-border);
-      border-radius: 11.2px;
-      background: #fafbfc;
-      color: #333;
-      appearance: none;
-      -webkit-appearance: none;
-      background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%235f6368'><path d='M7 10l5 5 5-5z'/></svg>");
-      background-repeat: no-repeat;
-      background-position: right 12px center;
-      background-size: 16px;
-    }
-
-    .field-select:focus {
-      outline: 0.8px solid var(--blue);
-    }
-
-    .field-select.placeholder {
-      color: #9aa0a6;
-    }
-
-    .field input[type="number"] {
-      width: 100%;
-      font-family: inherit;
-      font-size: 18px;
-      padding: 14px 16px;
-      border: 0.8px solid var(--gray-border);
-      border-radius: 11.2px;
-      background: #fafbfc;
-      color: #333;
-    }
-
-    .field input[type="number"]:focus {
-      outline: 0.8px solid var(--blue);
-    }
-
-    /* ---------- 分頁籤(未結案 / 已結案) ---------- */
-    .tab-row {
-      display: flex;
-      gap: 0;
-      margin-top: 14px;
-      border-bottom: 2px solid var(--gray-border);
-    }
-
-    .tab-btn {
-      flex: 1;
-      border: none;
-      background: none;
-      cursor: pointer;
-      padding: 8px 0 7.2px;
-      font-size: 16px;
-      font-weight: 700;
-      color: var(--gray-text);
-      position: relative;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 4px;
-    }
-
-    .tab-btn.active {
-      color: var(--blue);
-    }
-
-    .tab-btn.active::after {
-      content: '';
-      position: absolute;
-      left: 10%;
-      right: 10%;
-      bottom: -2px;
-      height: 3.2px;
-      background: var(--blue);
-      border-radius: 3.2px 3.2px 0 0;
-    }
-
-    .tab-count {
-      font-size: 12px;
-      font-weight: 700;
-      color: var(--blue);
-      background: #eef2fc;
-      padding: 1.6px 6px;
-      border-radius: 20px;
-    }
-
-    .tab-btn.active .tab-count {
-      background: var(--blue);
-      color: #fff;
-    }
-
-    /* ---------- List ---------- */
-    #list {
-      padding: 16px;
-    }
-
-    .card {
-      background: #fff;
-      border-radius: var(--radius);
-      border: 0.8px solid var(--gray-border);
-      box-shadow: 0 0.8px 2px rgba(0, 0, 0, 0.04);
-      padding: 20px;
-      margin-bottom: 18px;
-      border-left: 4.8px solid var(--blue);
-      transition: opacity .4s ease, max-height .4s ease, margin .4s ease, padding .4s ease, transform .4s ease;
-      max-height: 1200px;
-      overflow: hidden;
-    }
-
-    .card.st-pending {
-      border-left-color: var(--blue);
-    }
-
-    .card.st-notordered {
-      border-left-color: var(--orange);
-    }
-
-    .card.st-won {
-      border-left-color: var(--green);
-    }
-
-    .card.st-lost {
-      border-left-color: var(--red);
-    }
-
-    .card-top {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 4px;
-      gap: 8px;
-    }
-
-    .store-name {
-      font-size: 20px;
-      font-weight: 700;
-    }
-
-    .badge-group {
-      display: flex;
-      gap: 6px;
-      flex-shrink: 0;
-      flex-wrap: wrap;
-      justify-content: flex-end;
-    }
-
-    .badge {
-      font-size: 14px;
-      padding: 6px 12.8px;
-      border-radius: 20px;
-      font-weight: 700;
-      white-space: nowrap;
-    }
-
-    .badge.warn {
-      background: #fdecea;
-      color: var(--red);
-    }
-
-    .badge.ok {
-      background: #e6f4ea;
-      color: var(--green-dark);
-    }
-
-    .badge.overdue {
-      background: #fef3e0;
-      color: var(--orange);
-    }
-
-    .badge.pending {
-      background: #eef2fc;
-      color: var(--blue);
-    }
-
-    .time-tag {
-      font-size: 14px;
-      color: #9aa0a6;
-      margin-bottom: 12px;
-    }
-
-    .urgent-text {
-      font-size: 15.2px;
-      color: var(--orange);
-      margin-bottom: 12px;
-      font-weight: 700;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .urgent-text.overdue-text {
-      color: var(--red);
-    }
-
-    /* 訂單詳細資訊:輕量的 label/value 列表,不用輸入框包起來,
-       因為這裡只是顯示,不需要複製或編輯 */
-    .info-grid {
-      margin-top: 12px;
-      padding-top: 12px;
-      border-top: 0.8px solid var(--gray-border);
-      display: flex;
-      flex-direction: column;
-      gap: 8.8px;
-    }
-
-    .info-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: baseline;
-      gap: 12px;
-    }
-
-    .info-row .k {
-      font-size: 14px;
-      color: var(--gray-text);
-      flex-shrink: 0;
-    }
-
-    .info-row .v {
-      font-size: 16px;
-      font-weight: 700;
-      text-align: right;
-      word-break: break-word;
-    }
-
-    .action-row {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      margin-top: 18px;
-    }
-
-    .btn {
-      width: 100%;
-      border-radius: 14px;
-      padding: 18px 0;
-      font-size: 18px;
-      font-weight: 700;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      transition: background .15s, transform .1s, border-color .15s;
-      min-height: 58px;
-    }
-
-    .btn:active {
-      transform: scale(0.97);
-    }
-
-    .btn:disabled {
-      opacity: 0.6;
-      cursor: default;
-      transform: none;
-    }
-
-    .btn-save {
-      border: none;
-      background: var(--blue);
-      color: #fff;
-    }
-
-    .btn-save:hover {
-      background: var(--blue-dark);
-    }
-
-    .btn-save.saved {
-      background: var(--green);
-    }
-
-    /* ---------- Empty / Error / Prompt states ---------- */
-    .empty,
-    .loading,
-    .prompt {
-      text-align: center;
-      color: #9aa0a6;
-      margin-top: 60px;
-      font-size: 16.8px;
-      padding: 0 24px;
-    }
-
-    .empty .icon,
-    .loading .icon,
-    .prompt .icon {
-      font-size: 60px;
-      margin-bottom: 14px;
-    }
-
-    .error-box {
-      background: #fdecea;
-      border: 0.8px solid #f6c6c1;
-      border-radius: var(--radius);
-      padding: 18px;
-      color: #b71c1c;
-      font-size: 14px;
-      white-space: pre-wrap;
-      line-height: 1.7;
-      margin: 16px;
-    }
-
-    .error-box .title {
-      font-weight: 700;
-      margin-bottom: 8px;
       display: block;
-      font-size: 16px;
     }
 
-    .spinner {
-      width: 30px;
-      height: 30px;
-      border: 3.6px solid var(--gray-border);
-      border-top-color: var(--blue);
-      border-radius: 50%;
-      margin: 0 auto 14px;
-      animation: spin .8s linear infinite;
+    .ic-sm {
+      width: 16px;
+      height: 16px;
     }
 
-    /* ---------- Toast ---------- */
-    #toast-wrap {
-      position: fixed;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 8px;
-      padding: 16px;
-      padding-bottom: max(16px, env(safe-area-inset-bottom));
-      pointer-events: none;
-      z-index: 20;
+    .page {
+      max-width: 640px;
+      margin: 0 auto;
     }
 
-    .toast {
-      pointer-events: auto;
-      background: #323232;
-      color: #fff;
-      font-size: 16px;
-      padding: 14px 18px;
-      border-radius: 12px;
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
-      opacity: 0;
-      transform: translateY(8px);
-      transition: opacity .25s ease, transform .25s ease;
-      max-width: 92vw;
-    }
-
-    .toast.show {
-      opacity: 1;
-      transform: translateY(0);
-    }
-
-    .toast .msg {
-      flex: 1;
-    }
-
-    /* ---------- 登入 ---------- */
+    /* ===== 登入 ===== */
     body.logged-out .needs-login {
       display: none !important;
     }
@@ -503,130 +133,903 @@
       display: none;
     }
 
-    .login-panel {
-      margin: 24px 16px;
-      background: #fff;
-      border: 0.8px solid var(--gray-border);
-      border-radius: var(--radius);
-      padding: 24px 20px;
+    .login {
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px calc(24px + env(safe-area-inset-bottom));
     }
 
-    .login-title {
-      font-size: 20px;
-      font-weight: 700;
-      margin-bottom: 6px;
+    .login-card {
+      width: 100%;
+      max-width: 400px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      box-shadow: var(--shadow-lg);
+      padding: 32px 24px 24px;
     }
 
-    .login-hint {
-      font-size: 14px;
-      color: var(--gray-text);
+    .login-badge {
+      width: 56px;
+      height: 56px;
+      border-radius: 16px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
       margin-bottom: 16px;
     }
 
-    .login-panel input {
-      width: 100%;
-      font-family: inherit;
-      font-size: 18px;
-      padding: 14px 16px;
-      border: 0.8px solid var(--gray-border);
-      border-radius: 11.2px;
-      background: #fafbfc;
-      color: #333;
-      margin-bottom: 8px;
+    .login-badge .ic {
+      width: 28px;
+      height: 28px;
     }
 
-    .login-panel input:focus {
-      outline: 0.8px solid var(--blue);
+    .login-card h1 {
+      font-size: 22px;
+      margin: 0 0 6px;
+    }
+
+    .login-card p {
+      margin: 0 0 20px;
+      color: var(--text-2);
+      font-size: 15px;
+    }
+
+    .pw-wrap {
+      position: relative;
+    }
+
+    .pw-wrap input {
+      width: 100%;
+      height: 52px;
+      padding: 0 52px 0 16px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: var(--surface-2);
+      font-size: 17px;
+      letter-spacing: .04em;
+    }
+
+    .pw-wrap input:focus {
+      outline: none;
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px var(--blue-soft);
+    }
+
+    .pw-toggle {
+      position: absolute;
+      right: 4px;
+      top: 4px;
+      width: 44px;
+      height: 44px;
+      border: 0;
+      background: none;
+      color: var(--text-3);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
 
     .login-error {
       color: var(--red);
       font-size: 14px;
-      min-height: 20px;
-      margin-bottom: 8px;
+      min-height: 22px;
+      margin: 8px 0;
       white-space: pre-wrap;
     }
 
-    .login-btn {
-      width: 100%;
-      border: none;
-      border-radius: 14px;
-      background: var(--blue);
-      color: #fff;
-      font-size: 18px;
-      font-weight: 700;
-      min-height: 54px;
-      cursor: pointer;
+    /* ===== 按鈕 ===== */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 48px;
+      padding: 0 18px;
+      border-radius: 12px;
+      border: 1px solid transparent;
+      font-weight: 600;
+      font-size: 16px;
+      transition: background .15s, border-color .15s, color .15s, transform .08s, opacity .15s;
+      text-decoration: none;
     }
 
-    .login-btn:disabled {
-      opacity: 0.6;
+    .btn:active:not(:disabled) {
+      transform: scale(.98);
+    }
+
+    .btn:disabled {
       cursor: default;
+      opacity: .5;
     }
 
-    .header-actions {
+    .btn-block {
+      width: 100%;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: var(--accent-hover);
+    }
+
+    .btn-primary.is-saved {
+      background: var(--green);
+      opacity: 1;
+    }
+
+    .btn-secondary {
+      background: var(--surface);
+      border-color: var(--border);
+      color: var(--text);
+    }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-2);
+    }
+
+    .icon-btn {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      border: 0;
+      background: transparent;
+      color: var(--text-2);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .icon-btn:hover {
+      background: var(--surface-2);
+    }
+
+    .icon-btn.spinning .ic {
+      animation: spin .7s linear;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    /* ===== 頂部列 ===== */
+    .appbar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding-top: env(safe-area-inset-top);
+    }
+
+    .appbar-row {
       display: flex;
       align-items: center;
       gap: 4px;
+      padding: 10px 8px 10px 16px;
     }
 
-    .link-btn {
-      border: none;
-      background: none;
-      color: var(--blue);
-      font-size: 14px;
+    .appbar-text {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .appbar-title {
+      font-size: 18px;
       font-weight: 700;
-      cursor: pointer;
-      padding: 8px;
+      line-height: 1.3;
+    }
+
+    .appbar-status {
+      font-size: 13px;
+      color: var(--text-3);
+      min-height: 18px;
     }
 
     .identity {
-      font-size: 18px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 16px 12px;
+    }
+
+    .avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: var(--accent-soft);
+      color: var(--accent);
       font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .identity-text {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .identity-name {
+      font-weight: 700;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .identity-sub {
+      font-size: 13px;
+      color: var(--text-3);
+    }
+
+    .select {
+      width: 100%;
+      height: 48px;
+      padding: 0 40px 0 14px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: var(--surface-2) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a909a' stroke-width='2' stroke-linecap='round'><path d='M6 9l6 6 6-6'/></svg>") no-repeat right 12px center / 18px;
+      appearance: none;
+      -webkit-appearance: none;
+      font-size: 16px;
+    }
+
+    .admin-picker {
+      padding: 0 16px 12px;
+    }
+
+    /* ===== 統計 ===== */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      padding: 16px 16px 4px;
+    }
+
+    .stat {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 10px 10px 9px;
+      box-shadow: var(--shadow);
+      min-width: 0;
+    }
+
+    .stat-label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--text-2);
+      white-space: nowrap;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--c);
+      flex-shrink: 0;
+    }
+
+    .stat-num {
+      font-size: 22px;
+      font-weight: 700;
+      line-height: 1.25;
+      margin-top: 2px;
+    }
+
+    .stat-extra {
+      font-size: 11px;
+      color: var(--text-3);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* ===== 分頁 / 搜尋 ===== */
+    .toolbar {
+      padding: 12px 16px 4px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .segmented {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      background: var(--gray-soft);
+      border-radius: 12px;
+      padding: 4px;
+      gap: 4px;
+    }
+
+    .seg-btn {
+      border: 0;
+      background: transparent;
+      border-radius: 9px;
+      min-height: 40px;
+      font-weight: 600;
+      color: var(--text-2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .seg-btn.active {
+      background: var(--surface);
+      color: var(--text);
+      box-shadow: var(--shadow);
+    }
+
+    .count {
+      font-size: 12px;
+      font-weight: 700;
+      min-width: 22px;
+      padding: 1px 7px;
+      border-radius: 20px;
+      background: var(--surface-2);
+      color: var(--text-2);
+    }
+
+    .seg-btn.active .count {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .search {
+      position: relative;
+    }
+
+    .search .ic {
+      position: absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-3);
+    }
+
+    .search input {
+      width: 100%;
+      height: 46px;
+      padding: 0 14px 0 42px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: var(--surface);
+      font-size: 16px;
+    }
+
+    .search input:focus {
+      outline: none;
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px var(--blue-soft);
+    }
+
+    /* ===== 卡片 ===== */
+    .list {
+      padding: 12px 16px calc(96px + env(safe-area-inset-bottom));
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .card {
+      --stripe: var(--blue);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 16px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 4px;
+      background: var(--stripe);
+    }
+
+    .card.st-pending {
+      --stripe: var(--blue);
+    }
+
+    .card.st-notordered {
+      --stripe: var(--amber);
+    }
+
+    .card.st-won {
+      --stripe: var(--green);
+    }
+
+    .card.st-lost {
+      --stripe: var(--gray);
+    }
+
+    .card-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 20px;
+      background: var(--soft);
+      color: var(--c);
+      white-space: nowrap;
+    }
+
+    .pill .dot {
+      width: 6px;
+      height: 6px;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 3px 9px;
+      border-radius: 8px;
+      background: var(--surface-2);
+      color: var(--text-2);
+      white-space: nowrap;
+    }
+
+    .tag.soon {
+      background: var(--amber-soft);
+      color: var(--amber);
+    }
+
+    .tag.late {
+      background: var(--red-soft);
+      color: var(--red);
+    }
+
+    .card-title {
+      font-size: 19px;
+      font-weight: 700;
+      margin: 0;
+      line-height: 1.35;
+      word-break: break-word;
+    }
+
+    .card-sub {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--text-2);
+      font-size: 14px;
+      margin-top: 2px;
+    }
+
+    .alert {
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      background: var(--amber-soft);
+      color: var(--amber);
+    }
+
+    .alert.late {
+      background: var(--red-soft);
+      color: var(--red);
+    }
+
+    .meta {
+      margin-top: 14px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px 12px;
+    }
+
+    .meta-item {
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+      min-width: 0;
+    }
+
+    .meta-item.full {
+      grid-column: 1 / -1;
+    }
+
+    .meta-item .ic {
+      color: var(--text-3);
+      margin-top: 2px;
+    }
+
+    .meta-k {
+      font-size: 12px;
+      color: var(--text-3);
+      line-height: 1.3;
+    }
+
+    .meta-v {
+      font-size: 15px;
+      font-weight: 600;
+      word-break: break-word;
+    }
+
+    .meta-v.muted {
+      color: var(--text-3);
+      font-weight: 400;
+    }
+
+    .call {
+      margin-top: 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 10px 10px 14px;
+      border-radius: 12px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+    }
+
+    .call-num {
+      flex: 1;
+      min-width: 0;
+      font-size: 17px;
+      font-weight: 700;
+      letter-spacing: .02em;
+      word-break: break-all;
+    }
+
+    .call-btn {
+      min-height: 40px;
+      padding: 0 14px;
+      background: var(--green);
+      color: #fff;
+      border-radius: 10px;
+      font-size: 15px;
+    }
+
+    .divider {
+      height: 1px;
+      background: var(--border);
+      margin: 16px 0 14px;
+    }
+
+    .section-label {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-2);
+      margin-bottom: 8px;
+    }
+
+    /* 狀態選擇:四顆可直接點的按鈕(底層是 radio) */
+    .status-picker {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+    }
+
+    @media (max-width: 360px) {
+      .status-picker {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .stats {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    .status-opt {
+      position: relative;
+    }
+
+    .status-opt input {
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .status-opt span {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 44px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-2);
+      transition: background .15s, border-color .15s, color .15s;
+      user-select: none;
+    }
+
+    .status-opt input:checked+span {
+      background: var(--soft);
+      border-color: var(--c);
+      color: var(--c);
+      box-shadow: inset 0 0 0 1px var(--c);
+    }
+
+    .status-opt input:focus-visible+span {
+      outline: 2px solid var(--blue);
+      outline-offset: 2px;
+    }
+
+    .s-pending {
+      --c: var(--blue);
+      --soft: var(--blue-soft);
+    }
+
+    .s-notordered {
+      --c: var(--amber);
+      --soft: var(--amber-soft);
+    }
+
+    .s-won {
+      --c: var(--green);
+      --soft: var(--green-soft);
+    }
+
+    .s-lost {
+      --c: var(--gray);
+      --soft: var(--gray-soft);
+    }
+
+    .amount {
+      margin-top: 12px;
+    }
+
+    .amount-wrap {
+      display: flex;
+      align-items: center;
+      height: 50px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: var(--surface-2);
+      overflow: hidden;
+    }
+
+    .amount-wrap:focus-within {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px var(--blue-soft);
+    }
+
+    .amount-prefix {
+      padding: 0 4px 0 14px;
+      color: var(--text-3);
+      font-weight: 600;
+    }
+
+    .amount-wrap input {
+      flex: 1;
+      min-width: 0;
+      height: 100%;
+      border: 0;
+      background: transparent;
+      padding: 0 14px 0 6px;
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    .amount-wrap input:focus {
+      outline: none;
+    }
+
+    .save-row {
+      margin-top: 12px;
+    }
+
+    /* ===== 狀態畫面 ===== */
+    .state {
+      text-align: center;
+      color: var(--text-2);
+      padding: 56px 24px;
+    }
+
+    .state-icon {
+      font-size: 44px;
+      line-height: 1;
+      margin-bottom: 12px;
+    }
+
+    .state-title {
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+
+    .state-text {
+      font-size: 14px;
+    }
+
+    .error-box {
+      background: var(--red-soft);
+      color: var(--red);
+      border-radius: var(--radius);
+      padding: 16px;
+      font-size: 14px;
+      white-space: pre-wrap;
+      line-height: 1.6;
+    }
+
+    .error-box strong {
+      display: block;
+      font-size: 16px;
+      margin-bottom: 4px;
+    }
+
+    .error-box .btn {
+      margin-top: 12px;
+    }
+
+    .skeleton {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+    }
+
+    .sk-line {
+      height: 14px;
+      border-radius: 6px;
+      margin-bottom: 10px;
+      background: linear-gradient(90deg, var(--surface-2) 25%, var(--gray-soft) 50%, var(--surface-2) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.2s infinite linear;
+    }
+
+    @keyframes shimmer {
+      from {
+        background-position: 200% 0;
+      }
+
+      to {
+        background-position: -200% 0;
+      }
+    }
+
+    /* ===== Toast ===== */
+    #toast-wrap {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 30;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      padding: 16px 16px max(16px, env(safe-area-inset-bottom));
+      pointer-events: none;
+    }
+
+    .toast {
+      pointer-events: auto;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      max-width: 520px;
+      width: 100%;
+      padding: 14px 16px;
+      border-radius: 14px;
+      background: #24272c;
+      color: #fff;
+      box-shadow: var(--shadow-lg);
+      font-size: 15px;
+      opacity: 0;
+      transform: translateY(10px);
+      transition: opacity .2s, transform .2s;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: none;
+    }
+
+    .toast .ic {
+      color: #6bd495;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+
+      *,
+      *::before,
+      *::after {
+        animation: none !important;
+        transition: none !important;
+      }
     }
   </style>
 </head>
 
 <body class="logged-out">
-  <div class="header">
-    <div class="header-top">
-      <div class="header-title-wrap">
-        <span class="header-title">📋 訂單節點回報</span>
+  <!-- 登入畫面 -->
+  <main id="loginPanel" class="login">
+    <form id="loginForm" class="login-card" autocomplete="on">
+      <div class="login-badge" data-icon="lock"></div>
+      <h1>訂單節點回報</h1>
+      <p>請輸入你的專屬密碼。登入後這支手機會記住，下次不用再輸入。</p>
+      <div class="pw-wrap">
+        <input type="password" id="pwInput" autocomplete="current-password" autocapitalize="off" autocorrect="off"
+          spellcheck="false" placeholder="密碼" aria-label="密碼">
+        <button type="button" class="pw-toggle" id="pwToggle" aria-label="顯示密碼" data-icon="eye"></button>
       </div>
-      <div class="header-actions needs-login">
-        <button class="link-btn" id="logoutBtn">登出</button>
-        <button class="refresh-btn" id="refreshBtn" title="重新整理">⟳</button>
+      <div class="login-error" id="loginError" role="alert"></div>
+      <button type="submit" class="btn btn-primary btn-block" id="loginBtn">登入</button>
+    </form>
+  </main>
+
+  <!-- 登入後 -->
+  <div class="page needs-login">
+    <header class="appbar">
+      <div class="appbar-row">
+        <div class="appbar-text">
+          <div class="appbar-title">訂單節點回報</div>
+          <div class="appbar-status" id="status"></div>
+        </div>
+        <button class="icon-btn" id="refreshBtn" aria-label="重新整理" title="重新整理" data-icon="refresh"></button>
+        <button class="icon-btn" id="logoutBtn" aria-label="登出" title="登出" data-icon="logout"></button>
+      </div>
+      <div class="identity">
+        <div class="avatar" id="avatar"></div>
+        <div class="identity-text">
+          <div class="identity-name" id="identityName"></div>
+          <div class="identity-sub" id="identitySub"></div>
+        </div>
+      </div>
+      <div class="admin-picker" id="adminPicker" hidden>
+        <select class="select" id="acSelect" aria-label="選擇要查看的 AC"></select>
+      </div>
+    </header>
+
+    <div id="acView" hidden>
+      <section class="stats" id="stats" aria-label="狀態統計"></section>
+
+      <div class="toolbar">
+        <div class="segmented" id="tabRow" role="tablist">
+          <button class="seg-btn active" data-tab="open" role="tab">未結案 <span class="count" id="openTabCount">0</span></button>
+          <button class="seg-btn" data-tab="closed" role="tab">已結案 <span class="count" id="closedTabCount">0</span></button>
+        </div>
+        <label class="search">
+          <span data-icon="search"></span>
+          <input type="search" id="searchInput" placeholder="搜尋顧客、門市或電話" aria-label="搜尋">
+        </label>
       </div>
     </div>
-    <div class="status-line" id="status"></div>
 
-    <div class="field needs-login">
-      <div class="field-label">目前身份(AC)</div>
-      <div class="identity" id="identityText"></div>
-      <select class="field-select placeholder" id="acSelect" style="display:none;"></select>
-    </div>
-
-    <div class="tab-row needs-login" id="tabRow" style="display:none;">
-      <button class="tab-btn active" data-tab="open">
-        未結案 <span class="tab-count" id="openTabCount">0</span>
-      </button>
-      <button class="tab-btn" data-tab="closed">
-        已結案 <span class="tab-count" id="closedTabCount">0</span>
-      </button>
-    </div>
+    <main class="list" id="list"></main>
   </div>
 
-  <form id="loginPanel" class="login-panel">
-    <div class="login-title">🔒 請輸入密碼</div>
-    <div class="login-hint">請輸入你的專屬密碼。登入後這支手機會記住，下次不用再輸入。</div>
-    <input type="password" id="pwInput" autocomplete="current-password" autocapitalize="off" placeholder="密碼">
-    <div class="login-error" id="loginError"></div>
-    <button type="submit" class="login-btn" id="loginBtn">登入</button>
-  </form>
-
-  <div id="list" class="needs-login"></div>
-
-  <div id="toast-wrap"></div>
+  <div id="toast-wrap" aria-live="polite"></div>
 
   <script>
     // ⚠ 請把這裡換成你部署的 Apps Script API 網址(結尾是 /exec)
@@ -660,15 +1063,66 @@
 
     // 跨網域時瀏覽器只會給 "Failed to fetch",補上最常見的原因
     function explainFetchError_(err) {
-      throw new Error(err.message + '\n可能原因:① API_BASE_URL 不是 apps-script-api 的 /exec 網址(回傳 HTML 頁面時瀏覽器會擋 CORS);② 頁面放在禁止對外連線的環境(例如 Claude Artifact);③ 網路中斷。');
+      throw new Error(err.message + '\n可能原因:① 網路中斷;② API_BASE_URL 不是 apps-script-api 的 /exec 網址;③ 頁面放在禁止對外連線的環境(例如 Claude Artifact)。');
     }
 
+    // ===== 圖示(靜態 SVG,只用在固定字串,不放使用者資料) =====
+    const ICONS = {
+      lock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+      eye: '<path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/>',
+      eyeOff: '<path d="M17.94 17.94A10.5 10.5 0 0 1 12 19c-7 0-11-7-11-7a19.8 19.8 0 0 1 5.06-5.94M9.9 4.24A9.6 9.6 0 0 1 12 4c7 0 11 7 11 7a19.9 19.9 0 0 1-2.16 3.19M14.12 14.12a3 3 0 1 1-4.24-4.24M1 1l22 22"/>',
+      refresh: '<path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 4v5h-5"/>',
+      logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/>',
+      search: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
+      store: '<path d="M3 9l1.5-5h15L21 9"/><path d="M4 9v11h16V9"/><path d="M9 20v-6h6v6"/>',
+      calendar: '<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
+      users: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',
+      cash: '<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/>',
+      phone: '<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.4 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/>',
+      alert: '<path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>',
+      check: '<path d="M20 6L9 17l-5-5"/>',
+      clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+      trophy: '<path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4z"/><path d="M17 5h3a3 3 0 0 1-3 4M7 5H4a3 3 0 0 0 3 4"/>'
+    };
+
+    function svg(name, extraClass) {
+      return '<svg class="ic' + (extraClass ? ' ' + extraClass : '') + '" viewBox="0 0 24 24" aria-hidden="true">' + ICONS[name] + '</svg>';
+    }
+
+    function iconEl(name, extraClass) {
+      const span = document.createElement('span');
+      span.innerHTML = svg(name, extraClass);
+      return span.firstChild;
+    }
+
+    // 把 HTML 裡 data-icon 的元素填入對應圖示
+    document.querySelectorAll('[data-icon]').forEach(function (node) {
+      node.innerHTML = svg(node.dataset.icon);
+    });
+
+    // 建立元素的小工具:文字一律用 textContent,不會被當成 HTML 解析
+    function el(tag, className, text) {
+      const node = document.createElement(tag);
+      if (className) node.className = className;
+      if (text !== undefined && text !== null) node.textContent = text;
+      return node;
+    }
+
+    const $ = function (id) { return document.getElementById(id); };
+
+    // ===== 常數與狀態 =====
     const NO_VALUE_TEXT = '顧客未提供';
     const STATUS_PENDING = '待聯繫';
     const STATUS_NOT_ORDERED = '未下單';
     const STATUS_WON = '已成單';
     const STATUS_LOST = '未成單';
+    const STATUSES = [STATUS_PENDING, STATUS_NOT_ORDERED, STATUS_WON, STATUS_LOST];
     const CLOSED_STATUSES = [STATUS_WON, STATUS_LOST];
+    const STATUS_CLASS = {};
+    STATUS_CLASS[STATUS_PENDING] = 'pending';
+    STATUS_CLASS[STATUS_NOT_ORDERED] = 'notordered';
+    STATUS_CLASS[STATUS_WON] = 'won';
+    STATUS_CLASS[STATUS_LOST] = 'lost';
     const PW_STORAGE_KEY = 'ac_report_pw';
 
     let allOrders = [];
@@ -676,45 +1130,83 @@
     let currentAc = '';
     let password = '';
     let isAdmin = false;
+    let searchKeyword = '';
     let loadingTimeout;
 
-    document.getElementById('refreshBtn').addEventListener('click', function () {
-      this.classList.add('spinning');
+    function hasValue(v) {
+      return v !== undefined && v !== null && String(v).trim() !== '' && v !== NO_VALUE_TEXT;
+    }
+
+    function setStatus(msg) {
+      $('status').textContent = msg;
+    }
+
+    function nowTime() {
+      return new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function formatMoney(n) {
+      return 'NT$ ' + Number(n).toLocaleString('zh-TW');
+    }
+
+    // ===== 事件 =====
+    $('refreshBtn').addEventListener('click', function () {
+      const btn = this;
+      btn.classList.add('spinning');
+      setTimeout(function () { btn.classList.remove('spinning'); }, 700);
       if (currentAc) {
         logAction('重新整理', '');
         loadOrders(currentAc);
       }
-      setTimeout(() => this.classList.remove('spinning'), 700);
     });
 
     // 只有管理員會看到這個下拉選單,用來切換查看任一位 AC
-    document.getElementById('acSelect').addEventListener('change', function () {
+    $('acSelect').addEventListener('change', function () {
       const ac = this.value;
-      this.classList.toggle('placeholder', !ac);
       if (!ac) return;
       loadOrders(ac);
       logAction('切換查看 AC', ac);
     });
 
-    document.getElementById('loginPanel').addEventListener('submit', function (e) {
+    $('loginForm').addEventListener('submit', function (e) {
       e.preventDefault();
-      const pw = document.getElementById('pwInput').value.trim();
-      if (pw) login(pw, false);
+      const pw = $('pwInput').value.trim();
+      if (!pw) {
+        $('loginError').textContent = '請輸入密碼';
+        return;
+      }
+      login(pw, false);
     });
 
-    document.getElementById('logoutBtn').addEventListener('click', function () {
+    $('pwToggle').addEventListener('click', function () {
+      const input = $('pwInput');
+      const show = input.type === 'password';
+      input.type = show ? 'text' : 'password';
+      this.innerHTML = svg(show ? 'eyeOff' : 'eye');
+      this.setAttribute('aria-label', show ? '隱藏密碼' : '顯示密碼');
+    });
+
+    $('logoutBtn').addEventListener('click', function () {
+      if (!confirm('確定要登出嗎？下次需要重新輸入密碼。')) return;
       logAction('登出', '');
       showLogin('');
     });
 
-    document.getElementById('tabRow').addEventListener('click', function (e) {
-      const btn = e.target.closest('.tab-btn');
-      if (!btn) return;
+    $('tabRow').addEventListener('click', function (e) {
+      const btn = e.target.closest('.seg-btn');
+      if (!btn || btn.dataset.tab === currentTab) return;
       currentTab = btn.dataset.tab;
-      document.querySelectorAll('.tab-btn').forEach(function (b) {
-        b.classList.toggle('active', b.dataset.tab === currentTab);
+      document.querySelectorAll('.seg-btn').forEach(function (b) {
+        const on = b.dataset.tab === currentTab;
+        b.classList.toggle('active', on);
+        b.setAttribute('aria-selected', on ? 'true' : 'false');
       });
       logAction('切換分頁', currentTab === 'open' ? '未結案' : '已結案');
+      renderCurrentTab();
+    });
+
+    $('searchInput').addEventListener('input', function () {
+      searchKeyword = this.value.trim().toLowerCase();
       renderCurrentTab();
     });
 
@@ -726,49 +1218,51 @@
       gasCall('logAcAction', { acEmail: currentAc, logAction: action, detail: detail || '' }).catch(function () { });
     }
 
-    function setStatus(msg) {
-      document.getElementById('status').innerText = msg;
-    }
-
     // ===== 登入 / 登出 =====
     // 身份由密碼決定:AC 密碼只會拿到自己名下的訂單;管理員密碼可以切換查看任一位 AC
     function login(pw, fromStorage) {
       password = pw;
-      const btn = document.getElementById('loginBtn');
+      const btn = $('loginBtn');
       btn.disabled = true;
-      btn.innerText = '驗證中...';
-      document.getElementById('loginError').innerText = '';
+      btn.textContent = '驗證中…';
+      $('loginError').textContent = '';
 
       gasCall('login').then(function (res) {
         btn.disabled = false;
-        btn.innerText = '登入';
+        btn.textContent = '登入';
         if (!res || !res.success) {
-          document.getElementById('loginError').innerText = res ? res.error : '後端回傳空值';
+          $('loginError').textContent = res ? res.error : '後端回傳空值';
           return;
         }
         try { localStorage.setItem(PW_STORAGE_KEY, pw); } catch (e) { /* 存不進去就算了,下次再輸入一次 */ }
-        document.getElementById('pwInput').value = '';
+        $('pwInput').value = '';
         document.body.classList.remove('logged-out');
         isAdmin = res.role === 'admin';
 
-        const select = document.getElementById('acSelect');
         if (isAdmin) {
-          document.getElementById('identityText').innerText = '管理員(可切換查看任一 AC)';
+          setIdentity('管理員', '可切換查看任一位 AC');
           fillAcSelect(res.acList || []);
-          select.style.display = '';
-          document.getElementById('tabRow').style.display = 'none';
-          showPrompt('請在上方選擇要查看的 AC');
+          $('adminPicker').hidden = false;
+          $('acView').hidden = true;
+          currentAc = '';
+          showState('👆', '請選擇要查看的 AC', '從上方下拉選單選一位 AC');
         } else {
-          document.getElementById('identityText').innerText = res.ac;
-          select.style.display = 'none';
+          setIdentity(res.ac, '只會看到你名下門市的訂單');
+          $('adminPicker').hidden = true;
           loadOrders(res.ac);
           logAction('開啟頁面', fromStorage ? '瀏覽器記住的密碼' : '輸入密碼登入');
         }
       }).catch(function (err) {
         btn.disabled = false;
-        btn.innerText = '登入';
-        document.getElementById('loginError').innerText = err.message;
+        btn.textContent = '登入';
+        $('loginError').textContent = err.message;
       });
+    }
+
+    function setIdentity(name, sub) {
+      $('identityName').textContent = name;
+      $('identitySub').textContent = sub;
+      $('avatar').textContent = String(name || '?').trim().charAt(0).toUpperCase();
     }
 
     function showLogin(message) {
@@ -779,81 +1273,95 @@
       try { localStorage.removeItem(PW_STORAGE_KEY); } catch (e) { }
       clearTimeout(loadingTimeout);
       setStatus('');
+      $('searchInput').value = '';
+      searchKeyword = '';
       document.body.classList.add('logged-out');
-      const btn = document.getElementById('loginBtn');
+      const btn = $('loginBtn');
       btn.disabled = false;
-      btn.innerText = '登入';
-      document.getElementById('loginError').innerText = message || '';
+      btn.textContent = '登入';
+      $('loginError').textContent = message || '';
     }
 
     function fillAcSelect(acList) {
-      const select = document.getElementById('acSelect');
+      const select = $('acSelect');
       select.innerHTML = '';
-      select.classList.add('placeholder');
-      const placeholder = document.createElement('option');
+      const placeholder = el('option', null, '請選擇要查看的 AC…');
       placeholder.value = '';
-      placeholder.innerText = '請選擇要查看的 AC...';
       select.appendChild(placeholder);
       acList.forEach(function (ac) {
-        const opt = document.createElement('option');
+        const opt = el('option', null, ac);
         opt.value = ac;
-        opt.innerText = ac;
         select.appendChild(opt);
       });
     }
 
-    function showPrompt(message) {
-      const list = document.getElementById('list');
+    // ===== 畫面狀態:提示 / 載入中 / 錯誤 =====
+    function showState(icon, title, text) {
+      const list = $('list');
       list.innerHTML = '';
-      const prompt = document.createElement('div');
-      prompt.className = 'prompt';
-      prompt.innerHTML = '<div class="icon">👋</div>';
-      prompt.appendChild(document.createTextNode(message));
-      list.appendChild(prompt);
+      const box = el('div', 'state');
+      box.appendChild(el('div', 'state-icon', icon));
+      box.appendChild(el('div', 'state-title', title));
+      if (text) box.appendChild(el('div', 'state-text', text));
+      list.appendChild(box);
     }
 
-    function showErrorInList(message) {
-      const list = document.getElementById('list');
+    function showSkeleton() {
+      const list = $('list');
       list.innerHTML = '';
-      const box = document.createElement('div');
-      box.className = 'error-box';
-      const title = document.createElement('span');
-      title.className = 'title';
-      title.innerText = '發生錯誤';
-      box.appendChild(title);
+      for (let i = 0; i < 3; i++) {
+        const sk = el('div', 'skeleton');
+        [40, 70, 55, 90].forEach(function (w) {
+          const line = el('div', 'sk-line');
+          line.style.width = w + '%';
+          sk.appendChild(line);
+        });
+        list.appendChild(sk);
+      }
+    }
+
+    function showError(message, retry) {
+      const list = $('list');
+      list.innerHTML = '';
+      const box = el('div', 'error-box');
+      box.setAttribute('role', 'alert');
+      box.appendChild(el('strong', null, '發生錯誤'));
       box.appendChild(document.createTextNode(message));
+      if (retry) {
+        const btn = el('button', 'btn btn-secondary', '重試');
+        btn.addEventListener('click', retry);
+        box.appendChild(el('br'));
+        box.appendChild(btn);
+      }
       list.appendChild(box);
     }
 
     // ===== 讀取這位 AC 名下的訂單 =====
     function loadOrders(acEmail) {
       currentAc = acEmail;
-      document.getElementById('tabRow').style.display = '';
-      setStatus('載入中... ' + new Date().toLocaleTimeString());
-      const list = document.getElementById('list');
-      list.innerHTML = '';
-      const loading = document.createElement('div');
-      loading.className = 'loading';
-      loading.innerHTML = '<div class="spinner"></div>載入中...';
-      list.appendChild(loading);
-
+      $('acView').hidden = false;
+      setStatus('載入中…');
+      showSkeleton();
+      clearTimeout(loadingTimeout);
       loadingTimeout = setTimeout(function () {
-        setStatus('已等待超過 10 秒，尚無回應，請確認 Apps Script 執行紀錄');
+        setStatus('已等待超過 10 秒，仍在等待回應…');
       }, 10000);
 
       gasCall('getOrdersForAc', { ac: acEmail }).then(onOrdersLoaded).catch(function (err) {
         clearTimeout(loadingTimeout);
-        showErrorInList(err.message);
+        setStatus('載入失敗');
+        showError(err.message, function () { loadOrders(acEmail); });
       });
     }
 
     function onOrdersLoaded(result) {
       clearTimeout(loadingTimeout);
-      setStatus('更新於 ' + new Date().toLocaleTimeString());
       if (!result || !result.success) {
-        showErrorInList(result ? result.error : '後端回傳空值');
+        setStatus('載入失敗');
+        showError(result ? result.error : '後端回傳空值', function () { loadOrders(currentAc); });
         return;
       }
+      setStatus('更新於 ' + nowTime());
       allOrders = result.orders || [];
       renderCurrentTab();
     }
@@ -866,166 +1374,237 @@
       });
     }
 
+    function matchesSearch(o) {
+      if (!searchKeyword) return true;
+      return [o.customer, o.storeName, o.phone].join(' ').toLowerCase().indexOf(searchKeyword) !== -1;
+    }
+
     function renderCurrentTab() {
       const openOrders = sortByDaysUntil(allOrders.filter(function (o) { return CLOSED_STATUSES.indexOf(o.status) === -1; }));
       const closedOrders = sortByDaysUntil(allOrders.filter(function (o) { return CLOSED_STATUSES.indexOf(o.status) !== -1; }));
 
-      document.getElementById('openTabCount').innerText = openOrders.length;
-      document.getElementById('closedTabCount').innerText = closedOrders.length;
+      $('openTabCount').textContent = openOrders.length;
+      $('closedTabCount').textContent = closedOrders.length;
+      renderStats();
 
-      renderList(currentTab === 'open' ? openOrders : closedOrders);
+      const source = currentTab === 'open' ? openOrders : closedOrders;
+      renderList(source.filter(matchesSearch));
     }
 
-    function statusClass(status) {
-      if (status === STATUS_PENDING) return 'st-pending';
-      if (status === STATUS_NOT_ORDERED) return 'st-notordered';
-      if (status === STATUS_WON) return 'st-won';
-      if (status === STATUS_LOST) return 'st-lost';
-      return '';
-    }
+    function renderStats() {
+      const counts = {};
+      STATUSES.forEach(function (s) { counts[s] = 0; });
+      let wonSum = 0;
+      let urgent = 0;
+      allOrders.forEach(function (o) {
+        if (counts[o.status] !== undefined) counts[o.status]++;
+        if (o.status === STATUS_WON && o.dealAmount && !isNaN(Number(o.dealAmount))) wonSum += Number(o.dealAmount);
+        if (o.status === STATUS_NOT_ORDERED && typeof o.daysUntil === 'number' && o.daysUntil <= 2) urgent++;
+      });
 
-    function statusBadgeClass(status) {
-      if (status === STATUS_PENDING) return 'badge pending';
-      if (status === STATUS_NOT_ORDERED) return 'badge overdue';
-      if (status === STATUS_WON) return 'badge ok';
-      if (status === STATUS_LOST) return 'badge warn';
-      return 'badge';
-    }
+      const extras = {};
+      extras[STATUS_NOT_ORDERED] = urgent ? urgent + ' 筆將到期' : '';
+      extras[STATUS_WON] = wonSum ? formatMoney(wonSum) : '';
 
-    function makeInfoRow(label, value) {
-      const row = document.createElement('div');
-      row.className = 'info-row';
-      const k = document.createElement('span');
-      k.className = 'k';
-      k.innerText = label;
-      const v = document.createElement('span');
-      v.className = 'v';
-      v.innerText = value || NO_VALUE_TEXT;
-      row.appendChild(k);
-      row.appendChild(v);
-      return row;
-    }
-
-    function renderList(orders) {
-      const list = document.getElementById('list');
-      list.innerHTML = '';
-
-      if (!orders || orders.length === 0) {
-        const empty = document.createElement('div');
-        empty.className = 'empty';
-        empty.innerHTML = '<div class="icon">🎉</div>' +
-          (currentTab === 'open' ? '目前沒有未結案的訂單' : '目前沒有已結案的訂單');
-        list.appendChild(empty);
-        return;
-      }
-
-      orders.forEach(function (o) {
-        const card = document.createElement('div');
-        card.className = 'card ' + statusClass(o.status);
-        card.id = 'order-' + o.rowIndex;
-
-        const top = document.createElement('div');
-        top.className = 'card-top';
-        const name = document.createElement('span');
-        name.className = 'store-name';
-        name.innerText = o.customer && o.customer !== NO_VALUE_TEXT ? o.customer : o.storeName;
-        top.appendChild(name);
-
-        const badgeGroup = document.createElement('span');
-        badgeGroup.className = 'badge-group';
-        const badge = document.createElement('span');
-        badge.className = statusBadgeClass(o.status);
-        badge.innerText = o.status;
-        badgeGroup.appendChild(badge);
-        top.appendChild(badgeGroup);
-        card.appendChild(top);
-
-        const timeTag = document.createElement('div');
-        timeTag.className = 'time-tag';
-        timeTag.innerText = o.storeName;
-        card.appendChild(timeTag);
-
-        // 「未下單」且用餐日期逼近/已過期時,額外提示
-        if (o.status === STATUS_NOT_ORDERED && typeof o.daysUntil === 'number' && o.daysUntil <= 2) {
-          const urgent = document.createElement('div');
-          const overdue = o.daysUntil < 0;
-          urgent.className = 'urgent-text' + (overdue ? ' overdue-text' : '');
-          urgent.innerText = overdue
-            ? ('⚠ 用餐日期已過 ' + Math.abs(o.daysUntil) + ' 天,仍未下單')
-            : (o.daysUntil === 0 ? '⚠ 用餐日期就是今天,仍未下單' : ('⚠ 用餐日期剩 ' + o.daysUntil + ' 天,仍未下單'));
-          card.appendChild(urgent);
-        }
-
-        const info = document.createElement('div');
-        info.className = 'info-grid';
-        info.appendChild(makeInfoRow('用餐日期', o.diningDate + (o.timeSlot && o.timeSlot !== NO_VALUE_TEXT ? '(' + o.timeSlot + ')' : '')));
-        info.appendChild(makeInfoRow('聯絡電話', o.phone));
-        info.appendChild(makeInfoRow('預計人數', o.people));
-        info.appendChild(makeInfoRow('預算範圍', o.budget));
-        if (o.status === STATUS_WON && o.dealAmount) {
-          info.appendChild(makeInfoRow('成單金額', 'NT$ ' + o.dealAmount));
-        }
-        if (o.status === STATUS_WON && o.dealTime) {
-          info.appendChild(makeInfoRow('成單時間', o.dealTime));
-        }
-        card.appendChild(info);
-
-        // ---- 節點狀態變更區 ----
-        const statusField = document.createElement('div');
-        statusField.className = 'field';
-        const statusLabel = document.createElement('div');
-        statusLabel.className = 'field-label';
-        statusLabel.innerText = '更新節點狀態';
-        statusField.appendChild(statusLabel);
-
-        const select = document.createElement('select');
-        select.className = 'field-select';
-        [STATUS_PENDING, STATUS_NOT_ORDERED, STATUS_WON, STATUS_LOST].forEach(function (s) {
-          const opt = document.createElement('option');
-          opt.value = s;
-          opt.innerText = s;
-          if (s === o.status) opt.selected = true;
-          select.appendChild(opt);
-        });
-        statusField.appendChild(select);
-        card.appendChild(statusField);
-
-        // 成單金額輸入:只有選到「已成單」才顯示
-        const amountField = document.createElement('div');
-        amountField.className = 'field';
-        amountField.style.display = (select.value === STATUS_WON) ? '' : 'none';
-        const amountLabel = document.createElement('div');
-        amountLabel.className = 'field-label';
-        amountLabel.innerText = '成單金額';
-        amountField.appendChild(amountLabel);
-        const amountInput = document.createElement('input');
-        amountInput.type = 'number';
-        amountInput.min = '0';
-        amountInput.placeholder = '請輸入成單金額';
-        if (o.status === STATUS_WON && o.dealAmount) amountInput.value = o.dealAmount;
-        amountField.appendChild(amountInput);
-        card.appendChild(amountField);
-
-        select.addEventListener('change', function () {
-          amountField.style.display = (select.value === STATUS_WON) ? '' : 'none';
-        });
-
-        const actionRow = document.createElement('div');
-        actionRow.className = 'action-row';
-        const saveBtn = document.createElement('button');
-        saveBtn.className = 'btn btn-save';
-        saveBtn.innerText = '💾 儲存節點狀態';
-        saveBtn.addEventListener('click', function () {
-          saveStatus(o, select.value, amountInput.value, saveBtn, card);
-        });
-        actionRow.appendChild(saveBtn);
-        card.appendChild(actionRow);
-
-        list.appendChild(card);
+      const box = $('stats');
+      box.innerHTML = '';
+      STATUSES.forEach(function (s) {
+        const tile = el('div', 'stat s-' + STATUS_CLASS[s]);
+        const label = el('div', 'stat-label');
+        label.appendChild(el('span', 'dot'));
+        label.appendChild(document.createTextNode(s));
+        tile.appendChild(label);
+        tile.appendChild(el('div', 'stat-num', counts[s]));
+        tile.appendChild(el('div', 'stat-extra', extras[s] || ' '));
+        box.appendChild(tile);
       });
     }
 
-    function saveStatus(order, newStatus, amountValue, btn, card) {
+    function renderList(orders) {
+      const list = $('list');
+      list.innerHTML = '';
+
+      if (!orders.length) {
+        if (searchKeyword) {
+          showState('🔍', '找不到符合的訂單', '試試其他關鍵字');
+        } else if (currentTab === 'open') {
+          showState('🎉', '目前沒有未結案的訂單', '有新訂單時會出現在這裡');
+        } else {
+          showState('📭', '目前沒有已結案的訂單', '標記「已成單」或「未成單」後會移到這裡');
+        }
+        return;
+      }
+
+      orders.forEach(function (o) { list.appendChild(buildCard(o)); });
+    }
+
+    // 用餐日期倒數標籤
+    function dueTag(o) {
+      if (typeof o.daysUntil !== 'number' || CLOSED_STATUSES.indexOf(o.status) !== -1) return null;
+      const d = o.daysUntil;
+      let text;
+      if (d < 0) text = '已過 ' + Math.abs(d) + ' 天';
+      else if (d === 0) text = '今天用餐';
+      else if (d === 1) text = '明天用餐';
+      else text = d + ' 天後用餐';
+      const tag = el('span', 'tag' + (d < 0 ? ' late' : (d <= 2 ? ' soon' : '')));
+      tag.appendChild(iconEl('clock', 'ic-sm'));
+      tag.appendChild(document.createTextNode(text));
+      return tag;
+    }
+
+    function statusPill(status) {
+      const pill = el('span', 'pill s-' + (STATUS_CLASS[status] || 'pending'));
+      pill.appendChild(el('span', 'dot'));
+      pill.appendChild(document.createTextNode(status));
+      return pill;
+    }
+
+    function metaItem(icon, label, value, full) {
+      const item = el('div', 'meta-item' + (full ? ' full' : ''));
+      item.appendChild(iconEl(icon));
+      const text = el('div');
+      text.appendChild(el('div', 'meta-k', label));
+      text.appendChild(el('div', 'meta-v' + (hasValue(value) ? '' : ' muted'), hasValue(value) ? value : NO_VALUE_TEXT));
+      item.appendChild(text);
+      return item;
+    }
+
+    function buildCard(o) {
+      const card = el('article', 'card st-' + (STATUS_CLASS[o.status] || 'pending'));
+      card.id = 'order-' + o.rowIndex;
+
+      const head = el('div', 'card-head');
+      head.appendChild(statusPill(o.status));
+      const due = dueTag(o);
+      if (due) head.appendChild(due);
+      card.appendChild(head);
+
+      card.appendChild(el('h3', 'card-title', hasValue(o.customer) ? o.customer : o.storeName));
+      const sub = el('div', 'card-sub');
+      sub.appendChild(iconEl('store', 'ic-sm'));
+      sub.appendChild(document.createTextNode(o.storeName));
+      card.appendChild(sub);
+
+      // 「未下單」且用餐日期逼近/已過期時,額外提示
+      if (o.status === STATUS_NOT_ORDERED && typeof o.daysUntil === 'number' && o.daysUntil <= 2) {
+        const overdue = o.daysUntil < 0;
+        const alert = el('div', 'alert' + (overdue ? ' late' : ''));
+        alert.appendChild(iconEl('alert', 'ic-sm'));
+        alert.appendChild(el('span', null, overdue
+          ? '用餐日期已過 ' + Math.abs(o.daysUntil) + ' 天，仍未下單'
+          : (o.daysUntil === 0 ? '用餐日期就是今天，仍未下單' : '用餐日期剩 ' + o.daysUntil + ' 天，仍未下單')));
+        card.appendChild(alert);
+      }
+
+      const meta = el('div', 'meta');
+      const dateText = hasValue(o.diningDate)
+        ? o.diningDate + (hasValue(o.timeSlot) ? '・' + o.timeSlot : '')
+        : '';
+      meta.appendChild(metaItem('calendar', '用餐日期', dateText, true));
+      meta.appendChild(metaItem('users', '預計人數', o.people));
+      meta.appendChild(metaItem('cash', '預算範圍', o.budget));
+      if (o.status === STATUS_WON && o.dealAmount) {
+        meta.appendChild(metaItem('trophy', '成單金額', formatMoney(o.dealAmount)));
+      }
+      if (o.status === STATUS_WON && o.dealTime) {
+        meta.appendChild(metaItem('check', '成單時間', o.dealTime));
+      }
+      card.appendChild(meta);
+
+      // 電話:可以直接點撥
+      if (hasValue(o.phone)) {
+        const call = el('div', 'call');
+        call.appendChild(el('div', 'call-num', o.phone));
+        const telDigits = String(o.phone).replace(/[^\d+]/g, '');
+        if (telDigits) {
+          const a = el('a', 'btn call-btn');
+          a.href = 'tel:' + telDigits;
+          a.appendChild(iconEl('phone', 'ic-sm'));
+          a.appendChild(document.createTextNode('撥打'));
+          a.addEventListener('click', function () { logAction('撥打電話', o.storeName + '(' + (o.customer || '') + ')'); });
+          call.appendChild(a);
+        }
+        card.appendChild(call);
+      } else {
+        const meta2 = el('div', 'meta');
+        meta2.appendChild(metaItem('phone', '聯絡電話', '', true));
+        card.appendChild(meta2);
+      }
+
+      card.appendChild(el('div', 'divider'));
+
+      // ---- 節點狀態變更區 ----
+      card.appendChild(el('div', 'section-label', '更新節點狀態'));
+      const picker = el('div', 'status-picker');
+      picker.setAttribute('role', 'radiogroup');
+      picker.setAttribute('aria-label', '節點狀態');
+      const groupName = 'st-' + o.rowIndex;
+      STATUSES.forEach(function (s) {
+        const opt = el('label', 'status-opt s-' + STATUS_CLASS[s]);
+        const input = document.createElement('input');
+        input.type = 'radio';
+        input.name = groupName;
+        input.value = s;
+        input.checked = s === o.status;
+        opt.appendChild(input);
+        opt.appendChild(el('span', null, s));
+        picker.appendChild(opt);
+      });
+      card.appendChild(picker);
+
+      // 成單金額輸入:只有選到「已成單」才顯示
+      const amount = el('div', 'amount');
+      const amountLabel = el('label', 'section-label', '成單金額');
+      const amountId = 'amt-' + o.rowIndex;
+      amountLabel.htmlFor = amountId;
+      amount.appendChild(amountLabel);
+      const amountWrap = el('div', 'amount-wrap');
+      amountWrap.appendChild(el('span', 'amount-prefix', 'NT$'));
+      const amountInput = document.createElement('input');
+      amountInput.type = 'number';
+      amountInput.id = amountId;
+      amountInput.min = '0';
+      amountInput.inputMode = 'numeric';
+      amountInput.placeholder = '請輸入金額';
+      if (o.status === STATUS_WON && o.dealAmount) amountInput.value = o.dealAmount;
+      amountWrap.appendChild(amountInput);
+      amount.appendChild(amountWrap);
+      card.appendChild(amount);
+
+      const saveRow = el('div', 'save-row');
+      const saveBtn = el('button', 'btn btn-primary btn-block');
+      saveRow.appendChild(saveBtn);
+      card.appendChild(saveRow);
+
+      function selected() {
+        const checked = picker.querySelector('input:checked');
+        return checked ? checked.value : o.status;
+      }
+
+      // 沒有變更就不能按儲存,避免誤觸;有變更時按鈕才亮起來
+      function refreshDirty() {
+        const s = selected();
+        amount.hidden = s !== STATUS_WON;
+        const changed = s !== o.status || (s === STATUS_WON && amountInput.value.trim() !== String(o.dealAmount || ''));
+        saveBtn.disabled = !changed;
+        saveBtn.textContent = changed ? '儲存為「' + s + '」' : '狀態未變更';
+      }
+
+      picker.addEventListener('change', function () {
+        refreshDirty();
+        if (selected() === STATUS_WON && !amountInput.value) amountInput.focus();
+      });
+      amountInput.addEventListener('input', refreshDirty);
+      saveBtn.addEventListener('click', function () {
+        saveStatus(o, selected(), amountInput.value.trim(), saveBtn, refreshDirty);
+      });
+      refreshDirty();
+
+      return card;
+    }
+
+    function saveStatus(order, newStatus, amountValue, btn, onFail) {
       if (newStatus === STATUS_WON) {
         const amt = Number(amountValue);
         if (!amountValue || isNaN(amt) || amt <= 0) {
@@ -1035,7 +1614,7 @@
       }
 
       btn.disabled = true;
-      btn.innerText = '儲存中...';
+      btn.textContent = '儲存中…';
 
       gasCall('updateNodeStatus', { submitTimeKey: order.submitTimeKey, newStatus: newStatus, dealAmount: amountValue })
         .then(function (res) {
@@ -1043,34 +1622,28 @@
             order.status = res.status;
             order.dealAmount = (res.status === STATUS_WON) ? amountValue : '';
             if (res.status !== STATUS_WON) order.dealTime = '';
-            btn.innerText = '✓ 已儲存';
-            btn.classList.add('saved');
-            showToast(order.storeName + ' 已更新為「' + res.status + '」');
+            btn.innerHTML = svg('check', 'ic-sm');
+            btn.appendChild(document.createTextNode('已儲存'));
+            btn.classList.add('is-saved');
+            showToast((order.customer && order.customer !== NO_VALUE_TEXT ? order.customer : order.storeName) + ' 已更新為「' + res.status + '」');
             logAction('更新節點狀態', order.storeName + '(' + (order.customer || '') + ') → ' + res.status);
-            setTimeout(function () {
-              renderCurrentTab();
-            }, 500);
+            setTimeout(renderCurrentTab, 600);
           } else {
             alert('儲存失敗: ' + (res ? res.error : '未知錯誤'));
-            btn.disabled = false;
-            btn.innerText = '💾 儲存節點狀態';
+            onFail();
           }
         })
         .catch(function (err) {
           alert('儲存失敗: ' + err.message);
-          btn.disabled = false;
-          btn.innerText = '💾 儲存節點狀態';
+          onFail();
         });
     }
 
     function showToast(message) {
-      const wrap = document.getElementById('toast-wrap');
-      const toast = document.createElement('div');
-      toast.className = 'toast';
-      const msg = document.createElement('span');
-      msg.className = 'msg';
-      msg.innerText = message;
-      toast.appendChild(msg);
+      const wrap = $('toast-wrap');
+      const toast = el('div', 'toast');
+      toast.appendChild(iconEl('check'));
+      toast.appendChild(el('span', null, message));
       wrap.appendChild(toast);
       requestAnimationFrame(function () { toast.classList.add('show'); });
       setTimeout(function () {
