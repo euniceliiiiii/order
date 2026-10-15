@@ -882,6 +882,59 @@
       }
     }
 
+    /* ===== 電腦 / 平板:加寬版面,卡片排成多欄,工具列排成一行 ===== */
+    @media (min-width: 760px) {
+      .page {
+        max-width: 1100px;
+      }
+
+      .list {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+        align-items: start;
+      }
+
+      .list>.state,
+      .list>.error-box {
+        grid-column: 1 / -1;
+      }
+
+      .card.removing {
+        margin-bottom: 0;
+      }
+
+      .appbar .toolbar {
+        flex-direction: row;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+
+      .appbar .segmented {
+        flex: 0 0 340px;
+      }
+
+      #pendingControls {
+        flex: 1;
+        flex-direction: row;
+        align-items: center;
+        min-width: 0;
+      }
+
+      #pendingControls .search {
+        flex: 1;
+        min-width: 200px;
+      }
+
+      #toast-wrap {
+        align-items: flex-end;
+      }
+
+      .toast {
+        width: auto;
+        min-width: 340px;
+      }
+    }
+
     @media (prefers-reduced-motion: reduce) {
 
       *,

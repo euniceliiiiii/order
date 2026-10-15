@@ -1406,6 +1406,78 @@
       color: #6bd495;
     }
 
+    /* ===== 營運狀況(管理員) ===== */
+    .ops-warn {
+      margin-top: 12px;
+      background: var(--red-soft);
+      color: var(--red);
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 14px;
+      line-height: 1.7;
+    }
+
+    .ops-link {
+      margin-top: 12px;
+    }
+
+    .tbl .warn-num {
+      color: var(--red);
+      font-weight: 700;
+    }
+
+    /* ===== 電腦 / 平板:加寬版面,訂單卡片排成多欄 ===== */
+    @media (min-width: 760px) {
+      #detailView {
+        max-width: 1000px;
+      }
+
+      #detailView .list {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+        align-items: start;
+      }
+
+      #detailView .list>.state,
+      #detailView .list>.error-box {
+        grid-column: 1 / -1;
+      }
+
+      .detail-picker {
+        max-width: 440px;
+      }
+
+      .toolbar {
+        flex-direction: row;
+        align-items: center;
+      }
+
+      .toolbar .segmented {
+        flex: 0 0 320px;
+      }
+
+      .toolbar .search {
+        flex: 1;
+      }
+
+      .view-switch-wrap .segmented {
+        max-width: 360px;
+      }
+
+      .stats {
+        max-width: 720px;
+      }
+
+      #toast-wrap {
+        align-items: flex-end;
+      }
+
+      .toast {
+        width: auto;
+        min-width: 320px;
+      }
+    }
+
     @media (prefers-reduced-motion: reduce) {
 
       *,
@@ -1633,6 +1705,7 @@
     let loadingTimeout;
     let reportOrders = null;
     let reportGeneratedAt = '';
+    let reportOps = null;     // 管理員才有:待寄送 / 待分配 / 今天的每日摘要寄送結果
     const reportFilter = { period: 'all', rc: '', ac: '' };
     const tableSort = {};
     let showAllStores = false;
@@ -1835,6 +1908,7 @@
       currentAc = '';
       allOrders = [];
       reportOrders = null;
+      reportOps = null;
       reportFilter.period = 'all';
       reportFilter.rc = '';
       reportFilter.ac = '';
@@ -2092,11 +2166,15 @@
       if (due) head.appendChild(due);
       card.appendChild(head);
 
-      card.appendChild(el('h3', 'card-title', hasValue(o.customer) ? o.customer : o.storeName));
-      const sub = el('div', 'card-sub');
-      sub.appendChild(iconEl('store', 'ic-sm'));
-      sub.appendChild(document.createTextNode(o.storeName));
-      card.appendChild(sub);
+      // 沒有顧客名稱時標題改用門市名,下面就不再重複顯示門市
+      const hasCustomer = hasValue(o.customer);
+      card.appendChild(el('h3', 'card-title', hasCustomer ? o.customer : o.storeName));
+      if (hasCustomer) {
+        const sub = el('div', 'card-sub');
+        sub.appendChild(iconEl('store', 'ic-sm'));
+        sub.appendChild(document.createTextNode(o.storeName));
+        card.appendChild(sub);
+      }
 
       // 「待下單」且用餐日期逼近/已過期時,額外提示
       if (o.status === STATUS_NOT_ORDERED && typeof o.daysUntil === 'number' && o.daysUntil <= 2) {
@@ -2313,6 +2391,7 @@
           return;
         }
         reportOrders = res.orders || [];
+        reportOps = res.ops || null;
         reportGeneratedAt = res.generatedAt || nowTime();
         if (view === 'report') setStatus('資料時間 ' + reportGeneratedAt);
         rebuildRcFilter();
@@ -2403,13 +2482,23 @@
       return OPEN_STATUSES.indexOf(o.status) !== -1 && typeof o.daysUntil === 'number' && o.daysUntil <= 2;
     }
 
+    // 「拖太久」:跟每日待辦摘要副本給 RC 的條件一致
+    // 尚未聯繫超過 2 天(從通知寄出算),或用餐日已過還沒結案
+    const ESCALATE_HOURS = 48;
+    function isEscalated(o) {
+      if (OPEN_STATUSES.indexOf(o.status) === -1) return false;
+      if (typeof o.daysUntil === 'number' && o.daysUntil < 0) return true;
+      return o.status === STATUS_PENDING && typeof o.sentKey === 'number' && Date.now() - o.sentKey > ESCALATE_HOURS * 3600000;
+    }
+
     function summarize(orders) {
-      const s = { total: orders.length, counts: {}, amount: 0, attention: 0 };
+      const s = { total: orders.length, counts: {}, amount: 0, attention: 0, escalated: 0 };
       STATUSES.forEach(function (st) { s.counts[st] = 0; });
       orders.forEach(function (o) {
         if (s.counts[o.status] !== undefined) s.counts[o.status]++;
         if (o.status === STATUS_WON) s.amount += Number(o.dealAmount) || 0;
         if (isAttention(o)) s.attention++;
+        if (isEscalated(o)) s.escalated++;
       });
       s.won = s.counts[STATUS_WON];
       s.lost = s.counts[STATUS_LOST];
@@ -2451,6 +2540,7 @@
         return;
       }
 
+      if (role === 'admin' && reportOps) body.appendChild(buildOpsPanel(reportOps));
       const sum = summarize(orders);
       body.appendChild(buildKpis(sum));
       body.appendChild(buildStatusPanel(sum));
@@ -2504,7 +2594,8 @@
       body.appendChild(el('p', 'footnote',
         '統計範圍：已寄出通知、已分配門市的訂單；期間依「用餐日期」篩選。' +
         '成交率 ＝ 已成交 ÷（已成交＋已流失），只計算已結案的訂單。' +
-        '「需注意」＝ 尚未聯繫或待下單、且用餐日在 2 天內（含已過）。'));
+        '「需注意」＝ 尚未聯繫或待下單、且用餐日在 2 天內（含已過）。' +
+        '「拖太久」＝ 通知寄出超過 2 天還沒聯繫，或用餐日已過仍未結案；每日待辦摘要會把這些訂單副本給 RC。'));
     }
 
     function kpi(labelText, value, sub, opts) {
@@ -2518,6 +2609,31 @@
       return box;
     }
 
+    // 管理員「營運狀況」:待寄送 / 待分配 / 今天的每日待辦摘要寄送結果(全公司,不受上方篩選影響)
+    function buildOpsPanel(ops) {
+      const p = panel('營運狀況', '全公司・不受上方篩選影響');
+      const grid = el('div', 'kpis');
+      grid.appendChild(kpi('待寄送通知', ops.pending === null ? '—' : ops.pending,
+        ops.pendingOverdue ? ops.pendingOverdue + ' 筆超過 24 小時' : '還沒寄給門市', { warn: ops.pendingOverdue > 0 }));
+      grid.appendChild(kpi('待分配門市', ops.unassigned === null ? '—' : ops.unassigned, '還沒指派門市', { warn: ops.unassigned > 0 }));
+      const d = ops.lastDigest;
+      grid.appendChild(kpi('每日待辦摘要', d ? '已寄 ' + d.sentCount + ' 位' : '尚無紀錄',
+        d ? '最近一次：' + d.time : '設定排程後每天 9:00 寄出', { warn: !!(d && d.notSent.length) }));
+      p.appendChild(grid);
+
+      if (d && d.notSent.length) {
+        const warn = el('div', 'ops-warn');
+        warn.appendChild(el('strong', null, '未寄出 ' + d.notSent.length + ' 位'));
+        d.notSent.forEach(function (s) { warn.appendChild(el('div', null, '・' + s)); });
+        p.appendChild(warn);
+      }
+
+      const link = el('a', 'btn btn-secondary btn-small ops-link', '打開訂單寄信助手，處理待寄送／待分配');
+      link.href = 'MobileSidebar.html';
+      p.appendChild(link);
+      return p;
+    }
+
     function buildKpis(s) {
       const box = el('section', 'kpis');
       box.setAttribute('aria-label', '重點數字');
@@ -2525,7 +2641,7 @@
       box.appendChild(kpi('成交金額', formatMoney(s.amount), s.won ? s.won + ' 筆成交' : '尚無成交'));
       box.appendChild(kpi('成交率', pct(s.won, s.won + s.lost), '已結案 ' + (s.won + s.lost) + ' 筆'));
       box.appendChild(kpi('平均成交金額', s.won ? formatMoney(s.amount / s.won) : '—', '每筆成交訂單'));
-      box.appendChild(kpi('尚未聯繫', s.counts[STATUS_PENDING], '佔全部 ' + pct(s.counts[STATUS_PENDING], s.total)));
+      box.appendChild(kpi('拖太久', s.escalated, '未聯繫超過 2 天或用餐日已過', { warn: s.escalated > 0, icon: 'clock' }));
       box.appendChild(kpi('需注意', s.attention, '2 天內用餐仍未成交', { warn: s.attention > 0, icon: 'alert' }));
       return box;
     }
@@ -2586,8 +2702,9 @@
         const btn = el('button', 'attn-item');
         btn.type = 'button';
         const main = el('div', 'attn-main');
-        main.appendChild(el('div', 'attn-title', hasValue(o.customer) ? o.customer : o.storeName));
-        main.appendChild(el('div', 'attn-sub', o.storeName + '・' + (o.ac || '未對應 AC') + (o.diningDate ? '・' + o.diningDate : '')));
+        const hasCustomer = hasValue(o.customer);
+        main.appendChild(el('div', 'attn-title', hasCustomer ? o.customer : o.storeName));
+        main.appendChild(el('div', 'attn-sub', (hasCustomer ? o.storeName + '・' : '') + (o.ac || '未對應 AC') + (o.diningDate ? '・' + o.diningDate : '')));
         btn.appendChild(main);
         const side = el('div', 'attn-side');
         side.appendChild(statusPill(o.status));
@@ -2672,7 +2789,8 @@
         name: function (g) { return g.key === NONE_KEY ? '￿' : g.key; },
         total: function (g) { return g.total; },
         rate: function (g) { return g.rate === null ? -1 : g.rate; },
-        amount: function (g) { return g.amount; }
+        amount: function (g) { return g.amount; },
+        escalated: function (g) { return g.escalated; }
       };
       STATUSES.forEach(function (s) { valueOf['s:' + s] = function (g) { return g.counts[s] || 0; }; });
 
@@ -2716,6 +2834,7 @@
       hr.appendChild(th('訂單', 'total'));
       hr.appendChild(th('狀態分布'));
       STATUSES.forEach(function (s) { hr.appendChild(th(label(s), 's:' + s)); });
+      hr.appendChild(th('拖太久', 'escalated'));
       hr.appendChild(th('成交率', 'rate'));
       hr.appendChild(th('成交金額', 'amount'));
       thead.appendChild(hr);
@@ -2736,6 +2855,7 @@
           const n = g.counts[s] || 0;
           tr.appendChild(el('td', n ? '' : 'muted', n));
         });
+        tr.appendChild(el('td', g.escalated ? 'warn-num' : 'muted', g.escalated));
         tr.appendChild(el('td', g.rate === null ? 'muted' : '', g.rate === null ? '—' : Math.round(g.rate * 100) + '%'));
         tr.appendChild(el('td', g.amount ? '' : 'muted', g.amount ? formatMoney(g.amount) : '—'));
         if (opts.onClick) {
