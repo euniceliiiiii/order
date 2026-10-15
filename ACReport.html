@@ -1815,6 +1815,22 @@
       color: var(--text-3);
     }
 
+    .near-list+.near-note {
+      font-size: 12px;
+    }
+
+    .sug-tag {
+      display: inline-block;
+      margin-left: 6px;
+      padding: 1px 7px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 700;
+      background: var(--blue-soft);
+      color: var(--blue);
+      vertical-align: 2px;
+    }
+
     #mailView .list>.near-error {
       margin-top: 0;
     }
@@ -3976,31 +3992,66 @@
       showError('unassignedList', err && err.message ? err.message : JSON.stringify(err), loadUnassigned);
     }
 
-    // Google 地圖開在新分頁(電腦不會蓋掉這個頁面;手機會交給地圖 App 或新分頁)
-    function openInMaps(query) {
-      if (!query || query === NO_VALUE_TEXT) return;
-      const url = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(query);
-      const win = window.open(url, '_blank', 'noopener');
-      if (!win) {
-        // 被瀏覽器擋下彈出視窗時,改用連結開新分頁
-        const link = document.createElement('a');
-        link.href = url;
-        link.target = '_blank';
-        link.rel = 'noopener';
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
+    // 開新分頁(電腦不會蓋掉這個頁面;手機會交給對應 App 或新分頁)
+    // 不用 window.open 的 'noopener' 參數:加了之後成功也會回傳 null,會誤判成被擋而多開一個分頁
+    function openNewTab(url) {
+      const win = window.open(url, '_blank');
+      if (win) {
+        try { win.opener = null; } catch (e) { }
+        return;
       }
+      // 被瀏覽器擋下彈出視窗時,改用連結開新分頁
+      const link = document.createElement('a');
+      link.href = url;
+      link.target = '_blank';
+      link.rel = 'noopener';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
     }
 
-    // 地點資訊:文字可以直接選取;opts.copy 顯示「複製」、opts.map 顯示「附近必勝客」(Google 地圖開新分頁)
+    function openInMaps(query) {
+      if (!query || query === NO_VALUE_TEXT) return;
+      openNewTab('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(query));
+    }
+
+    // 複製純文字,回傳 Promise<是否成功>
+    function copyPlain(text) {
+      function legacy() {
+        const temp = document.createElement('textarea');
+        temp.value = text;
+        temp.readOnly = true;
+        temp.style.position = 'fixed';
+        temp.style.opacity = '0';
+        document.body.appendChild(temp);
+        const ok = legacyCopy_(temp);
+        temp.remove();
+        return ok;
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        return navigator.clipboard.writeText(text).then(function () { return true; }, legacy);
+      }
+      return Promise.resolve(legacy());
+    }
+
+    // 必勝客官網沒辦法從網址帶入地址:先把地址複製起來,打開官網後直接貼上
+    const PH_SITE_URL = 'https://www.pizzahut.com.tw/';
+    function openPizzaHutSite(address) {
+      copyPlain(address).then(function (ok) {
+        showToast(ok ? '已複製外送地址，到官網輸入地址時貼上即可' : '地址複製失敗，請手動複製');
+      });
+      openNewTab(PH_SITE_URL);
+    }
+
+    // 地點資訊:文字可以直接選取;opts.copy 顯示「複製」、opts.map 顯示「附近必勝客」(Google 地圖)、
+    // opts.site 顯示「官網」(複製地址並打開必勝客官網)
     function makePlace(labelText, value, opts) {
       opts = opts || {};
       const ok = hasValue(value);
       const wrap = el('div', 'place');
       const head = el('div', 'field-head');
       head.appendChild(el('span', 'field-label', labelText));
-      if (ok && (opts.copy || opts.map)) {
+      if (ok && (opts.copy || opts.map || opts.site)) {
         const tools = el('span', 'place-tools');
         if (opts.copy) {
           const copyBtn = el('button', 'copy-btn');
@@ -4018,6 +4069,15 @@
           nearBtn.title = '在新分頁打開 Google 地圖，搜尋這個地址附近的必勝客';
           nearBtn.addEventListener('click', function () { openInMaps('必勝客 near ' + value); });
           tools.appendChild(nearBtn);
+        }
+        if (opts.site) {
+          const siteBtn = el('button', 'copy-btn');
+          siteBtn.type = 'button';
+          siteBtn.innerHTML = svg('store', 'ic-sm');
+          siteBtn.appendChild(document.createTextNode('官網'));
+          siteBtn.title = '複製外送地址，並在新分頁打開必勝客官網';
+          siteBtn.addEventListener('click', function () { openPizzaHutSite(value); });
+          tools.appendChild(siteBtn);
         }
         head.appendChild(tools);
       }
@@ -4047,29 +4107,113 @@
       orders.forEach(function (o) { list.appendChild(buildUnassignedCard(o)); });
     }
 
-    // 離外送地址最近的必勝客門市(直線距離):點一下直接選到下方「指派門市」
-    function makeNearest(o, select) {
-      if (!o.nearest && !o.nearestNote) return null;
+    // ----- 顧客填的「鄰近必勝客門市」模糊比對到門市名單 -----
+    // 去掉「必勝客 / Pizza Hut / 門市 / 店」等字和標點後比較:完全相同 > 互相包含 > 兩字片段相似度
+    function normStoreText(s) {
+      return String(s || '').toLowerCase()
+        .replace(/pizza\s*hut|必勝客/g, '')
+        .replace(/[\s\-_()（）【】\[\]、,，.。:：]/g, '')
+        .replace(/(外送店|外帶店|餐廳店|餐廳|門市|分店|店)$/, '');
+    }
+
+    function bigrams(s) {
+      const out = [];
+      for (let i = 0; i < s.length - 1; i++) out.push(s.substr(i, 2));
+      return out;
+    }
+
+    function storeSimilarity(a, b) {
+      if (!a || !b) return 0;
+      if (a === b) return 1;
+      const shorter = a.length < b.length ? a : b;
+      const longer = a.length < b.length ? b : a;
+      // 「信義」對「台北市信義區」這種包含關係;短的那邊越長越可信
+      if (shorter.length >= 2 && longer.indexOf(shorter) !== -1) return 0.7 + 0.25 * shorter.length / longer.length;
+      const A = bigrams(a);
+      const pool = bigrams(b);
+      if (!A.length || !pool.length) return 0;
+      const total = A.length + pool.length;
+      let hit = 0;
+      A.forEach(function (x) {
+        const k = pool.indexOf(x);
+        if (k !== -1) { hit++; pool.splice(k, 1); }
+      });
+      return 2 * hit / total;
+    }
+
+    // 回傳最像的 1~2 家(分數要夠高;第二名要跟第一名差不多才列出)
+    function guessStoresFromText(text) {
+      const t = normStoreText(text);
+      if (t.length < 2) return [];
+      const scored = storeNameOptions.map(function (name) {
+        return { name: name, score: storeSimilarity(t, normStoreText(name)) };
+      }).filter(function (x) { return x.score >= 0.5; })
+        .sort(function (a, b) { return b.score - a.score; });
+      if (!scored.length) return [];
+      return scored.filter(function (x) { return x.score >= scored[0].score - 0.05; }).slice(0, 2)
+        .map(function (x) { return x.name; });
+    }
+
+    // ----- 建議門市:合併「顧客填的鄰近門市」與「離外送地址最近」,點一下帶入指派 -----
+    // 同一家同時符合兩個條件時合成一列,排最前面
+    function makeSuggestions(o, select) {
+      const customerText = hasValue(o.nearbyStore) ? o.nearbyStore : '';
+      const guesses = customerText ? guessStoresFromText(customerText) : [];
+      const rows = [];
+      const byMatch = {};
+
+      guesses.forEach(function (name) {
+        const row = { name: name, match: name, customer: true };
+        rows.push(row);
+        byMatch[name] = row;
+      });
+      (o.nearest || []).forEach(function (s) {
+        const same = s.match && byMatch[s.match];
+        if (same) {
+          same.km = s.km;
+          same.address = s.address;
+          return;
+        }
+        const row = { name: s.match || s.name, officialName: s.name, match: s.match, km: s.km, address: s.address };
+        rows.push(row);
+        if (s.match) byMatch[s.match] = row;
+      });
+      rows.sort(function (a, b) {
+        const ra = (a.customer ? 2 : 0) + (a.km !== undefined ? 1 : 0);
+        const rb = (b.customer ? 2 : 0) + (b.km !== undefined ? 1 : 0);
+        if (ra !== rb) return rb - ra;
+        return (a.km === undefined ? Infinity : a.km) - (b.km === undefined ? Infinity : b.km);
+      });
+
+      if (!rows.length && !customerText && !o.nearestNote) return null;
+
       const wrap = el('div', 'place');
-      wrap.appendChild(el('div', 'field-label', '離外送地址最近的門市（直線距離，參考用）'));
-      if (!o.nearest || !o.nearest.length) {
-        wrap.appendChild(el('div', 'near-note', o.nearestNote || '找不到附近的門市'));
-        return wrap;
+      wrap.appendChild(el('div', 'field-label', '建議門市（點一下帶入）'));
+      if (customerText) {
+        wrap.appendChild(el('div', 'near-note', '顧客填的鄰近門市：「' + customerText + '」' +
+          (guesses.length ? '' : '，門市名單裡找不到相近的')));
       }
+      if (o.nearestNote) wrap.appendChild(el('div', 'near-note', o.nearestNote));
+      if (!rows.length) return wrap;
+
       const list = el('div', 'near-list');
       const buttons = [];
-      o.nearest.forEach(function (s) {
+      rows.forEach(function (r) {
         const btn = el('button', 'near-btn');
         btn.type = 'button';
-        btn.dataset.match = s.match || '';
+        btn.dataset.match = r.match || '';
         const main = el('span', 'near-main');
-        main.appendChild(el('span', 'near-name', s.name));
-        main.appendChild(el('span', 'near-sub', s.match ? s.address : s.address + '・門市名單裡找不到這家，請手動選'));
+        const nameLine = el('span', 'near-name', r.name);
+        if (r.customer) nameLine.appendChild(el('span', 'sug-tag', '顧客填寫'));
+        main.appendChild(nameLine);
+        let sub = r.address || '';
+        if (!r.match) sub = (sub ? sub + '・' : '') + '門市名單裡找不到這家，請手動選';
+        if (sub) main.appendChild(el('span', 'near-sub', sub));
         btn.appendChild(main);
-        btn.appendChild(el('span', 'near-km', s.km + ' km'));
-        if (s.match) {
+        if (r.km !== undefined) btn.appendChild(el('span', 'near-km', r.km + ' km'));
+        if (r.match) {
           btn.addEventListener('click', function () {
-            select.value = s.match;
+            select.value = r.match;
             select.dispatchEvent(new Event('change'));
           });
         } else {
@@ -4083,6 +4227,9 @@
         buttons.forEach(function (b) { b.classList.toggle('chosen', !!b.dataset.match && b.dataset.match === select.value); });
       });
       wrap.appendChild(list);
+      if (rows.some(function (r) { return r.km !== undefined; })) {
+        wrap.appendChild(el('div', 'near-note', 'km 是離外送地址的直線距離，不等於實際外送範圍'));
+      }
       return wrap;
     }
 
@@ -4098,8 +4245,7 @@
       card.appendChild(head);
       card.appendChild(submitLine(o));
 
-      card.appendChild(makePlace('鄰近必勝客門市（參考用）', o.nearbyStore));
-      card.appendChild(makePlace('外送地址', o.deliveryAddress, { copy: true, map: true }));
+      card.appendChild(makePlace('外送地址', o.deliveryAddress, { copy: true, map: true, site: true }));
 
       // 指派門市
       const field = el('div', 'place');
@@ -4121,8 +4267,8 @@
         select.appendChild(opt);
       });
       field.appendChild(select);
-      const nearest = makeNearest(o, select);
-      if (nearest) card.appendChild(nearest);
+      const suggestions = makeSuggestions(o, select);
+      if (suggestions) card.appendChild(suggestions);
       card.appendChild(field);
 
       const actions = el('div', 'actions');
