@@ -2115,22 +2115,30 @@
     // 只讀不寫的動作:遇到 Google 臨時錯誤頁時自動重試一次(寫入的動作不重試,避免重複寫入)
     const RETRYABLE_ACTIONS = ['login', 'getReport', 'getOrdersForAc', 'getPendingOrders', 'getUnassignedOrders'];
 
+    // 每次登入 / 登出都換一個編號;回應回來時編號已經不同(期間有人登出或換人登入),就整個丟掉,
+    // 避免上一位使用者的資料(例如管理員的全部訂單)出現在下一位的畫面上
+    let sessionSeq = 0;
+    const NEVER = function () { return new Promise(function () { }); };
+
     function gasCall(action, params, isRetry) {
+      const session = sessionSeq;
       const body = Object.assign({ action: action, pw: password }, params || {});
       return fetch(API_BASE_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify(body)
       }).then(parseApiResponse_, explainFetchError_).then(function (res) {
+        if (session !== sessionSeq) return NEVER();
         if (res && res.authError) {
-          showLogin('密碼錯誤或已失效，請重新輸入');
-          return new Promise(function () { });
+          showLogin(res.error && res.error !== '密碼錯誤' ? res.error : '密碼錯誤或已失效，請重新輸入');
+          return NEVER();
         }
         return res;
       }, function (err) {
+        if (session !== sessionSeq) return NEVER();
         if (err.retryable && !isRetry && RETRYABLE_ACTIONS.indexOf(action) !== -1) {
           return new Promise(function (resolve) { setTimeout(resolve, 1500); })
-            .then(function () { return gasCall(action, params, true); });
+            .then(function () { return session === sessionSeq ? gasCall(action, params, true) : NEVER(); });
         }
         throw err;
       });
@@ -2433,6 +2441,7 @@
     // ===== 登入 / 登出 =====
     // 身份由密碼決定:AC 只看自己名下訂單;RC 看自己負責的 AC(唯讀)+ 報表;管理員看全部 + 報表
     function login(pw, fromStorage) {
+      sessionSeq++;
       password = pw;
       const btn = $('loginBtn');
       btn.disabled = true;
@@ -2492,6 +2501,7 @@
     }
 
     function showLogin(message) {
+      sessionSeq++;
       password = '';
       role = '';
       currentAc = '';
@@ -2583,14 +2593,18 @@
     }
 
     // ===== 畫面狀態:提示 / 載入中 / 錯誤 =====
-    function showState(containerId, icon, title, text) {
-      const box = $(containerId);
-      box.innerHTML = '';
+    function stateEl(icon, title, text) {
       const st = el('div', 'state');
       st.appendChild(el('div', 'state-icon', icon));
       st.appendChild(el('div', 'state-title', title));
       if (text) st.appendChild(el('div', 'state-text', text));
-      box.appendChild(st);
+      return st;
+    }
+
+    function showState(containerId, icon, title, text) {
+      const box = $(containerId);
+      box.innerHTML = '';
+      box.appendChild(stateEl(icon, title, text));
     }
 
     function showSkeleton(containerId, count) {
@@ -2623,6 +2637,15 @@
       box.appendChild(err);
     }
 
+    // 同一種資料連續讀兩次時(例如先看 A 再看 B),只採用最後一次;比較早送出、比較晚回來的直接忽略
+    const reqSeq = {};
+    function latestOnly(key) {
+      const id = (reqSeq[key] = (reqSeq[key] || 0) + 1);
+      return function (fn) {
+        return function (x) { if (reqSeq[key] === id) return fn(x); };
+      };
+    }
+
     // =====================================================================
     // 訂單明細
     // =====================================================================
@@ -2637,11 +2660,12 @@
         setStatus('已等待超過 10 秒，仍在等待回應…');
       }, 10000);
 
-      gasCall('getOrdersForAc', { ac: acEmail }).then(onOrdersLoaded).catch(function (err) {
+      const fresh = latestOnly('orders');
+      gasCall('getOrdersForAc', { ac: acEmail }).then(fresh(onOrdersLoaded)).catch(fresh(function (err) {
         clearTimeout(loadingTimeout);
         setStatus('載入失敗');
         showError('list', err.message, function () { loadOrders(acEmail); });
-      });
+      }));
     }
 
     function onOrdersLoaded(result) {
@@ -2667,16 +2691,36 @@
       return [o.customer, o.storeName, o.phone].join(' ').toLowerCase().indexOf(searchKeyword) !== -1;
     }
 
+    function isClosed(o) {
+      return CLOSED_STATUSES.indexOf(o.status) !== -1;
+    }
+
+    function updateTabCounts() {
+      const closed = allOrders.filter(isClosed).length;
+      $('openTabCount').textContent = allOrders.length - closed;
+      $('closedTabCount').textContent = closed;
+    }
+
     function renderCurrentTab() {
-      const openOrders = allOrders.filter(function (o) { return CLOSED_STATUSES.indexOf(o.status) === -1; }).sort(byDiningDate);
-      const closedOrders = allOrders.filter(function (o) { return CLOSED_STATUSES.indexOf(o.status) !== -1; }).sort(byDiningDate);
-
-      $('openTabCount').textContent = openOrders.length;
-      $('closedTabCount').textContent = closedOrders.length;
+      updateTabCounts();
       renderStats();
-
-      const source = currentTab === 'open' ? openOrders : closedOrders;
+      const source = allOrders.filter(function (o) { return isClosed(o) === (currentTab === 'closed'); }).sort(byDiningDate);
       renderList(source.filter(matchesSearch));
+    }
+
+    // 儲存成功後只更新這一張卡片(不重畫整個清單),其他卡片還沒儲存的修改才不會被清掉
+    function refreshSavedCard(order, card) {
+      updateTabCounts();
+      renderStats();
+      if (!card || !card.isConnected) return;
+      const stillHere = isClosed(order) === (currentTab === 'closed') && matchesSearch(order);
+      if (stillHere) {
+        card.replaceWith(buildCard(order));
+        return;
+      }
+      // 結案 / 重新開啟後換到另一個分頁了:從這頁移除
+      card.remove();
+      if (!$('list').querySelector('.card')) renderList([]);
     }
 
     function renderStats() {
@@ -2904,7 +2948,7 @@
       btn.disabled = true;
       btn.textContent = '儲存中…';
 
-      gasCall('updateNodeStatus', { submitTimeKey: order.submitTimeKey, newStatus: newStatus, dealAmount: amountValue })
+      gasCall('updateNodeStatus', { orderId: order.orderId, submitTimeKey: order.submitTimeKey, newStatus: newStatus, dealAmount: amountValue })
         .then(function (res) {
           if (res && res.success) {
             order.status = res.status;
@@ -2916,7 +2960,8 @@
             reportOrders = null; // 報表資料已過期,下次切到報表時重新讀取
             showToast((hasValue(order.customer) ? order.customer : order.storeName) + ' 已更新為「' + label(res.status) + '」');
             logAction('更新節點狀態', order.storeName + '(' + (order.customer || '') + ') → ' + res.status);
-            setTimeout(renderCurrentTab, 600);
+            const card = btn.closest('.card');
+            setTimeout(function () { refreshSavedCard(order, card); }, 600);
           } else {
             alert('儲存失敗: ' + (res ? res.error : '未知錯誤'));
             onFail();
@@ -2986,7 +3031,8 @@
       }
       renderPeriodChips();
 
-      gasCall('getReport').then(function (res) {
+      const fresh = latestOnly('report');
+      gasCall('getReport').then(fresh(function (res) {
         $('reportBody').classList.remove('is-stale');
         if (!res || !res.success) {
           setStatus('載入失敗');
@@ -3000,11 +3046,11 @@
         rebuildRcFilter();
         rebuildAcFilter();
         renderReport();
-      }).catch(function (err) {
+      })).catch(fresh(function (err) {
         $('reportBody').classList.remove('is-stale');
         setStatus('載入失敗');
         showError('reportBody', err.message, loadReport);
-      });
+      }));
     }
 
     function nameOrNone(v) {
@@ -3138,12 +3184,13 @@
       $('tooltip').hidden = true;
       const orders = filteredReportOrders();
 
+      // 營運狀況是全公司的數字,不受篩選影響:就算這個範圍沒有訂單也要顯示
+      if (role === 'admin' && reportOps) body.appendChild(buildOpsPanel(reportOps));
+
       if (!orders.length) {
-        showState('reportBody', '📭', '這個範圍沒有訂單', '換個期間或篩選條件試試');
+        body.appendChild(stateEl('📭', '這個範圍沒有訂單', '換個期間或篩選條件試試'));
         return;
       }
-
-      if (role === 'admin' && reportOps) body.appendChild(buildOpsPanel(reportOps));
       const sum = summarize(orders);
       body.appendChild(buildKpis(sum));
       body.appendChild(buildStatusPanel(sum));
@@ -3618,6 +3665,11 @@
       return Math.floor(h / 24) + ' 天前';
     }
 
+    // 寫入時告訴後端是哪一筆:訂單編號優先(填寫時間只當作備用)
+    function orderRef(order) {
+      return { orderId: order.orderId, submitTimeKey: order.submitTimeKey };
+    }
+
     function isOverdue(order) {
       return typeof order.submitTimeKey === 'number' && (Date.now() - order.submitTimeKey) > OVERDUE_MS;
     }
@@ -3653,7 +3705,8 @@
         setMailStatus('已等待超過 10 秒，仍在等待回應…');
       }, 10000);
 
-      gasCall('getPendingOrders').then(function (result) {
+      const fresh = latestOnly('pending');
+      gasCall('getPendingOrders').then(fresh(function (result) {
         clearTimeout(mailLoadingTimeout);
         if (!result || !result.success) {
           onPendingError({ message: result ? result.error : '後端回傳空值' });
@@ -3663,7 +3716,7 @@
         mailOrders = sortBySubmit(result.orders || []);
         setPendingTabCount(mailOrders.length);
         applyMailFilters();
-      }).catch(onPendingError);
+      })).catch(fresh(onPendingError));
     }
 
     function onPendingError(err) {
@@ -3745,6 +3798,15 @@
         card.appendChild(warn);
       }
 
+      // 後端對不到唯一的訂單編號(例如兩筆同一秒填寫):不能標記,避免標錯筆
+      const noId = 'orderId' in o && !o.orderId;
+      if (noId) {
+        const warn = el('div', 'alert late');
+        warn.appendChild(iconEl('alert', 'ic-sm'));
+        warn.appendChild(el('span', null, (o.orderIdNote || '找不到對應的訂單編號') + '，無法在這裡標記完成，請到試算表處理'));
+        card.appendChild(warn);
+      }
+
       const actions = el('div', 'actions');
       // 主要動作:開啟 Outlook 寄信
       const outlookBtn = el('button', 'btn btn-primary btn-block');
@@ -3757,6 +3819,7 @@
       const doneBtn = el('button', 'btn btn-secondary btn-block');
       setDoneLabel(doneBtn, 'idle');
       doneBtn.addEventListener('click', function () { markDone(o, doneBtn, outlookBtn, card); });
+      doneBtn.disabled = noId;
       actions.appendChild(doneBtn);
       card.appendChild(actions);
 
@@ -3932,7 +3995,7 @@
         setDoneLabel(btn, 'idle');
       }
 
-      gasCall('markAsSent', { submitTimeKey: order.submitTimeKey })
+      gasCall('markAsSent', orderRef(order))
         .then(function (res) {
           if (!res || !res.success) {
             alert('標記失敗: ' + (res ? res.error : '未知錯誤'));
@@ -3943,16 +4006,19 @@
           card.classList.add('is-done');
           removeMailOrder(order);
           invalidateReport();
-          if (res.matchCount > 1) {
-            alert('注意:填寫時間有 ' + res.matchCount + ' 筆重複，已標記第一筆符合的資料，建議人工確認 worksheet 是否正確');
-          }
 
           // 給 5 秒的撤銷時間,期間卡片先留在畫面上(變淡)
           showUndoToast(
             order.storeName + ' 已標記完成',
             function onUndo() {
               setDoneLabel(btn, 'busy');
-              gasCall('unmarkAsSent', { submitTimeKey: order.submitTimeKey })
+              // 撤銷失敗時不能把訂單放回「待寄送」(試算表裡其實還是已寄送,會害人重寄),
+              // 改成重新讀取清單,顯示試算表的實際狀態
+              function undoFailed(message) {
+                alert('撤銷失敗: ' + message + '\n清單會重新讀取，顯示目前的實際狀態');
+                loadPending();
+              }
+              gasCall('unmarkAsSent', orderRef(order))
                 .then(function (r) {
                   if (r && r.success) {
                     resetButtons();
@@ -3960,15 +4026,11 @@
                     invalidateReport();
                     showToast('已撤銷「' + order.storeName + '」');
                   } else {
-                    alert('撤銷失敗: ' + (r ? r.error : '未知錯誤') + '\n請按右上角重新整理確認狀態');
-                    resetButtons();
-                    restoreMailOrder(order);
+                    undoFailed(r ? r.error : '未知錯誤');
                   }
                 })
                 .catch(function (err) {
-                  alert('撤銷失敗: ' + err.message + '\n請按右上角重新整理確認狀態');
-                  resetButtons();
-                  restoreMailOrder(order);
+                  undoFailed(err.message);
                 });
             },
             function onExpire() {
@@ -3991,7 +4053,8 @@
         if (mailTab === 'unassigned') setMailStatus('已等待超過 10 秒，仍在等待回應…');
       }, 10000);
 
-      gasCall('getUnassignedOrders', { withNearest: true }).then(function (result) {
+      const fresh = latestOnly('unassigned');
+      gasCall('getUnassignedOrders', { withNearest: true }).then(fresh(function (result) {
         clearTimeout(unassignedLoadingTimeout);
         if (!result || !result.success) {
           onUnassignedError({ message: result ? result.error : '後端回傳空值' });
@@ -4001,7 +4064,7 @@
         storeNameOptions = result.storeNames || [];
         setUnassignedTabCount(unassignedOrders.length);
         renderUnassignedList(unassignedOrders, result.nearestError);
-      }).catch(onUnassignedError);
+      })).catch(fresh(onUnassignedError));
     }
 
     function onUnassignedError(err) {
@@ -4352,7 +4415,7 @@
       }
 
       gasCall('assignStores', {
-        items: items.map(function (it) { return { submitTimeKey: it.order.submitTimeKey, storeName: it.select.value }; })
+        items: items.map(function (it) { return { orderId: it.order.orderId, submitTimeKey: it.order.submitTimeKey, storeName: it.select.value }; })
       }).then(function (res) {
         if (!res || !res.success) {
           alert('指派失敗: ' + (res ? res.error : '未知錯誤'));
@@ -4361,13 +4424,11 @@
           return;
         }
         let ok = 0;
-        let dup = 0;
         const failed = [];
         res.results.forEach(function (r, i) {
           const it = items[i];
           if (r && r.success) {
             ok++;
-            if (r.matchCount > 1) dup++;
             const idx = unassignedOrders.indexOf(it.order);
             if (idx !== -1) unassignedOrders.splice(idx, 1);
             removeCard(it.card, 'unassignedList', emptyUnassigned);
@@ -4384,7 +4445,6 @@
           loadPending();
         }
         if (failed.length) alert('有 ' + failed.length + ' 筆沒有指派成功：\n' + failed.join('\n'));
-        if (dup) alert('注意:有 ' + dup + ' 筆的填寫時間重複，已指派第一筆符合的資料，建議人工確認 worksheet 是否正確');
       }).catch(function (err) {
         alert('指派失敗: ' + err.message);
         items.forEach(resetItem);
@@ -4415,15 +4475,12 @@
         updateBulkBar();
       }
 
-      gasCall('assignStore', { submitTimeKey: order.submitTimeKey, storeName: storeName })
+      gasCall('assignStore', { orderId: order.orderId, submitTimeKey: order.submitTimeKey, storeName: storeName })
         .then(function (res) {
           if (!res || !res.success) {
             alert('指派失敗: ' + (res ? res.error : '未知錯誤'));
             reset();
             return;
-          }
-          if (res.matchCount > 1) {
-            alert('注意:填寫時間有 ' + res.matchCount + ' 筆重複，已指派第一筆符合的資料，建議人工確認 worksheet 是否正確');
           }
           const idx = unassignedOrders.indexOf(order);
           if (idx !== -1) unassignedOrders.splice(idx, 1);
