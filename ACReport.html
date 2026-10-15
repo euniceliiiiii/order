@@ -1698,6 +1698,81 @@
       color: var(--text-3);
     }
 
+    /* 最近門市 */
+    .near-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: 4px;
+    }
+
+    .near-btn {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      text-align: left;
+      border: 1px solid var(--border);
+      background: var(--surface-2);
+      border-radius: 12px;
+      padding: 10px 12px;
+      transition: border-color .15s, background .15s;
+    }
+
+    .near-btn:hover:not(:disabled) {
+      border-color: var(--green);
+    }
+
+    .near-btn.chosen {
+      border-color: var(--green);
+      background: var(--green-soft);
+    }
+
+    .near-btn:disabled {
+      cursor: default;
+      opacity: .65;
+    }
+
+    .near-main {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .near-name {
+      font-size: 15px;
+      font-weight: 600;
+    }
+
+    .near-sub {
+      font-size: 12px;
+      color: var(--text-3);
+    }
+
+    .near-km {
+      flex-shrink: 0;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      color: var(--text-2);
+    }
+
+    .near-note {
+      margin-top: 4px;
+      font-size: 13px;
+      color: var(--text-3);
+    }
+
+    #mailView .list>.near-error {
+      margin-top: 0;
+    }
+
+    @media (min-width: 760px) {
+      #mailView .list>.near-error {
+        grid-column: 1 / -1;
+      }
+    }
+
     /* ===== 營運狀況(管理員) ===== */
     .ops-warn {
       margin-top: 12px;
@@ -2102,7 +2177,6 @@
     let autoTab = false;      // 從報表點進來時,如果未結案找不到就自動切到已結案
     let loadingTimeout;
     let reportOrders = null;
-    let reportGeneratedAt = '';
     let reportOps = null;     // 管理員才有:待寄送 / 待分配 / 今天的每日摘要寄送結果
     const reportFilter = { period: 'all', rc: '', ac: '' };
     const tableSort = {};
@@ -2116,8 +2190,24 @@
       $('status').textContent = msg;
     }
 
-    function nowTime() {
-      return new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' });
+    // 三個分頁各自的資料時間,格式統一成「更新於 10/15 14:30」
+    const updatedAt = { report: '', detail: '', mail: '' };
+    // 按重新整理時,不是目前這頁的分頁標成過期,切過去時自動重抓
+    const stale = { report: false, detail: false, mail: false };
+
+    function stamp() {
+      const d = new Date();
+      const p = function (n) { return String(n).padStart(2, '0'); };
+      return p(d.getMonth() + 1) + '/' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+    }
+
+    function markUpdated(v) {
+      updatedAt[v] = stamp();
+      if (view === v) setStatus('更新於 ' + updatedAt[v]);
+    }
+
+    function showUpdated(v) {
+      setStatus(updatedAt[v] ? '更新於 ' + updatedAt[v] : '');
     }
 
     function formatMoney(n) {
@@ -2143,6 +2233,9 @@
       const btn = this;
       btn.classList.add('spinning');
       setTimeout(function () { btn.classList.remove('spinning'); }, 700);
+      // 目前這頁立刻重抓;其他分頁標成過期,切過去時才重抓
+      // (不一起重抓:同時打好幾支 API 比較慢,也會蓋掉其他頁還沒儲存的選擇)
+      stale.report = stale.detail = stale.mail = true;
       if (view === 'report') {
         loadReport();
       } else if (view === 'mail') {
@@ -2318,6 +2411,7 @@
       reportFilter.rc = '';
       reportFilter.ac = '';
       showAllStores = false;
+      Object.keys(updatedAt).forEach(function (k) { updatedAt[k] = ''; stale[k] = false; });
       resetMail();
       try { localStorage.removeItem(PW_STORAGE_KEY); } catch (e) { }
       clearTimeout(loadingTimeout);
@@ -2362,15 +2456,16 @@
         try { history.replaceState(null, '', v === 'mail' ? '#mail' : location.pathname + location.search); } catch (e) { }
       }
       if (v === 'report') {
-        if (!reportOrders) loadReport();
-        else setStatus('資料時間 ' + (reportGeneratedAt || ''));
+        if (!reportOrders || stale.report) loadReport();
+        else showUpdated('report');
         if (!silent) logAction('查看報表', '');
       } else if (v === 'mail') {
-        // 第一次切到寄信助手才讀資料,之後切回來沿用(按右上角重新整理才重抓)
-        if (!mailLoaded) loadMail();
-        else setStatus(mailUpdatedAt ? '更新於 ' + mailUpdatedAt : '');
+        // 第一次切到寄信助手才讀資料,之後切回來沿用(按過重新整理才重抓)
+        if (!mailLoaded || stale.mail) loadMail();
+        else showUpdated('mail');
       } else {
-        setStatus('');
+        if (stale.detail && currentAc && !silent) loadOrders(currentAc);
+        else showUpdated('detail');
       }
     }
 
@@ -2442,6 +2537,7 @@
     // =====================================================================
     function loadOrders(acEmail) {
       currentAc = acEmail;
+      stale.detail = false;
       $('acView').hidden = false;
       setStatus('載入中…');
       showSkeleton('list');
@@ -2464,7 +2560,7 @@
         showError('list', result ? result.error : '後端回傳空值', function () { loadOrders(currentAc); });
         return;
       }
-      setStatus('更新於 ' + nowTime());
+      markUpdated('detail');
       allOrders = result.orders || [];
       if (autoTab) {
         autoTab = false;
@@ -2789,6 +2885,7 @@
     }
 
     function loadReport() {
+      stale.report = false;
       setStatus('載入報表中…');
       if (reportOrders) {
         // 重新整理時保留舊畫面(變淡),不閃骨架
@@ -2808,8 +2905,7 @@
         reportOrders = res.orders || [];
         reportOps = res.ops || null;
         refreshMailBadge();
-        reportGeneratedAt = res.generatedAt || nowTime();
-        if (view === 'report') setStatus('資料時間 ' + reportGeneratedAt);
+        markUpdated('report');
         rebuildRcFilter();
         rebuildAcFilter();
         renderReport();
@@ -3332,7 +3428,6 @@
     const UNDO_MS = 5000;
 
     let mailLoaded = false;
-    let mailUpdatedAt = '';
     let mailOrders = [];
     let unassignedOrders = [];
     let storeNameOptions = [];
@@ -3373,7 +3468,6 @@
 
     function resetMail() {
       mailLoaded = false;
-      mailUpdatedAt = '';
       mailOrders = [];
       unassignedOrders = [];
       mailCounts.pending = null;
@@ -3417,6 +3511,7 @@
 
     function loadMail() {
       mailLoaded = true;
+      stale.mail = false;
       loadPending();
       loadUnassigned();
     }
@@ -3472,8 +3567,7 @@
           onPendingError({ message: result ? result.error : '後端回傳空值' });
           return;
         }
-        mailUpdatedAt = nowTime();
-        setMailStatus('更新於 ' + mailUpdatedAt);
+        markUpdated('mail');
         mailOrders = sortBySubmit(result.orders || []);
         setPendingTabCount(mailOrders.length);
         applyMailFilters();
@@ -3792,7 +3886,7 @@
         if (mailTab === 'unassigned') setMailStatus('已等待超過 10 秒，仍在等待回應…');
       }, 10000);
 
-      gasCall('getUnassignedOrders').then(function (result) {
+      gasCall('getUnassignedOrders', { withNearest: true }).then(function (result) {
         clearTimeout(unassignedLoadingTimeout);
         if (!result || !result.success) {
           onUnassignedError({ message: result ? result.error : '後端回傳空值' });
@@ -3801,7 +3895,7 @@
         unassignedOrders = sortBySubmit(result.orders || []);
         storeNameOptions = result.storeNames || [];
         setUnassignedTabCount(unassignedOrders.length);
-        renderUnassignedList(unassignedOrders);
+        renderUnassignedList(unassignedOrders, result.nearestError);
       }).catch(onUnassignedError);
     }
 
@@ -3839,14 +3933,59 @@
       showState('unassignedList', '🎉', '目前沒有待分配門市的訂單', '有新的待分配訂單時會出現在這裡');
     }
 
-    function renderUnassignedList(orders) {
+    function renderUnassignedList(orders, nearestError) {
       const list = $('unassignedList');
       list.innerHTML = '';
       if (!orders.length) {
         emptyUnassigned();
         return;
       }
+      if (nearestError) {
+        const warn = el('div', 'alert near-error');
+        warn.appendChild(iconEl('alert', 'ic-sm'));
+        warn.appendChild(el('span', null, '暫時算不出最近的門市（' + nearestError + '），請用地圖按鈕確認。'));
+        list.appendChild(warn);
+      }
       orders.forEach(function (o) { list.appendChild(buildUnassignedCard(o)); });
+    }
+
+    // 離外送地址最近的必勝客門市(直線距離):點一下直接選到下方「指派門市」
+    function makeNearest(o, select) {
+      if (!o.nearest && !o.nearestNote) return null;
+      const wrap = el('div', 'place');
+      wrap.appendChild(el('div', 'field-label', '離外送地址最近的門市（直線距離，參考用）'));
+      if (!o.nearest || !o.nearest.length) {
+        wrap.appendChild(el('div', 'near-note', o.nearestNote || '找不到附近的門市'));
+        return wrap;
+      }
+      const list = el('div', 'near-list');
+      const buttons = [];
+      o.nearest.forEach(function (s) {
+        const btn = el('button', 'near-btn');
+        btn.type = 'button';
+        btn.dataset.match = s.match || '';
+        const main = el('span', 'near-main');
+        main.appendChild(el('span', 'near-name', s.name));
+        main.appendChild(el('span', 'near-sub', s.match ? s.address : s.address + '・門市名單裡找不到這家，請手動選'));
+        btn.appendChild(main);
+        btn.appendChild(el('span', 'near-km', s.km + ' km'));
+        if (s.match) {
+          btn.addEventListener('click', function () {
+            select.value = s.match;
+            select.dispatchEvent(new Event('change'));
+          });
+        } else {
+          btn.disabled = true;
+        }
+        buttons.push(btn);
+        list.appendChild(btn);
+      });
+      // 下拉選單選到哪一家,對應的按鈕就亮起來
+      select.addEventListener('change', function () {
+        buttons.forEach(function (b) { b.classList.toggle('chosen', !!b.dataset.match && b.dataset.match === select.value); });
+      });
+      wrap.appendChild(list);
+      return wrap;
     }
 
     function buildUnassignedCard(o) {
@@ -3884,6 +4023,8 @@
         select.appendChild(opt);
       });
       field.appendChild(select);
+      const nearest = makeNearest(o, select);
+      if (nearest) card.appendChild(nearest);
       card.appendChild(field);
 
       const actions = el('div', 'actions');
