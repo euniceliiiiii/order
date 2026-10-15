@@ -1698,6 +1698,31 @@
       color: var(--text-3);
     }
 
+    /* 地點文字(可選取複製) */
+    .place-tools {
+      display: inline-flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 6px;
+    }
+
+    .place-text {
+      border: 1px solid var(--border);
+      background: var(--surface-2);
+      border-radius: 12px;
+      padding: 10px 12px;
+      font-size: 15px;
+      font-weight: 600;
+      word-break: break-word;
+      user-select: text;
+      -webkit-user-select: text;
+    }
+
+    .place-text.muted {
+      color: var(--text-3);
+      font-weight: 400;
+    }
+
     /* 最近門市 */
     .near-list {
       display: flex;
@@ -3734,6 +3759,19 @@
       }
     }
 
+    // 複製一段純文字(沒有輸入框可選取時,暫時建一個隱藏的輸入框來複製)
+    function copyText(text, btn) {
+      const temp = document.createElement('textarea');
+      temp.value = text;
+      temp.readOnly = true;
+      temp.style.position = 'fixed';
+      temp.style.opacity = '0';
+      temp.style.pointerEvents = 'none';
+      document.body.appendChild(temp);
+      copyField(temp, btn);
+      setTimeout(function () { temp.remove(); }, 1500);
+    }
+
     // 用暫時建立的 <a> 標籤觸發外部 App(郵件 / 地圖),在手機瀏覽器裡比 window.open 穩定
     function openExternal(url) {
       const link = document.createElement('a');
@@ -3905,27 +3943,61 @@
       showError('unassignedList', err && err.message ? err.message : JSON.stringify(err), loadUnassigned);
     }
 
+    // Google 地圖開在新分頁(電腦不會蓋掉這個頁面;手機會交給地圖 App 或新分頁)
     function openInMaps(query) {
       if (!query || query === NO_VALUE_TEXT) return;
-      openExternal('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(query));
+      const url = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(query);
+      const win = window.open(url, '_blank', 'noopener');
+      if (!win) {
+        // 被瀏覽器擋下彈出視窗時,改用連結開新分頁
+        const link = document.createElement('a');
+        link.href = url;
+        link.target = '_blank';
+        link.rel = 'noopener';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      }
     }
 
-    function makePlace(labelText, value) {
-      const wrap = el('div', 'place');
-      wrap.appendChild(el('div', 'field-label', labelText));
+    // 地點資訊:文字可以直接選取;opts.copy 顯示「複製」、opts.map 顯示「地圖」(開新分頁)
+    function makePlace(labelText, value, opts) {
+      opts = opts || {};
       const ok = hasValue(value);
-      const btn = el('button', 'place-btn');
-      btn.type = 'button';
-      btn.style.marginTop = '4px';
-      btn.appendChild(iconEl('pin'));
-      btn.appendChild(el('span', null, ok ? value : NO_VALUE_TEXT));
-      if (ok) {
-        btn.appendChild(el('span', 'go', '地圖 ›'));
-        btn.addEventListener('click', function () { openInMaps(value); });
-      } else {
-        btn.disabled = true;
+      const wrap = el('div', 'place');
+      const head = el('div', 'field-head');
+      head.appendChild(el('span', 'field-label', labelText));
+      if (ok && (opts.copy || opts.map)) {
+        const tools = el('span', 'place-tools');
+        if (opts.copy) {
+          const copyBtn = el('button', 'copy-btn');
+          copyBtn.type = 'button';
+          setCopyLabel(copyBtn, false);
+          copyBtn.addEventListener('click', function () { copyText(value, copyBtn); });
+          tools.appendChild(copyBtn);
+        }
+        if (opts.map) {
+          const mapBtn = el('button', 'copy-btn');
+          mapBtn.type = 'button';
+          mapBtn.innerHTML = svg('pin', 'ic-sm');
+          mapBtn.appendChild(document.createTextNode('地圖'));
+          mapBtn.title = '在新分頁打開 Google 地圖';
+          mapBtn.addEventListener('click', function () { openInMaps(value); });
+          tools.appendChild(mapBtn);
+
+          // 在 Google 地圖上搜尋「這個地址附近的必勝客」,地圖會標出周圍每一家
+          const nearBtn = el('button', 'copy-btn');
+          nearBtn.type = 'button';
+          nearBtn.innerHTML = svg('store', 'ic-sm');
+          nearBtn.appendChild(document.createTextNode('附近必勝客'));
+          nearBtn.title = '在新分頁打開 Google 地圖，搜尋這個地址附近的必勝客';
+          nearBtn.addEventListener('click', function () { openInMaps('必勝客 near ' + value); });
+          tools.appendChild(nearBtn);
+        }
+        head.appendChild(tools);
       }
-      wrap.appendChild(btn);
+      wrap.appendChild(head);
+      wrap.appendChild(el('div', 'place-text' + (ok ? '' : ' muted'), ok ? value : NO_VALUE_TEXT));
       return wrap;
     }
 
@@ -4001,7 +4073,7 @@
       card.appendChild(submitLine(o));
 
       card.appendChild(makePlace('鄰近必勝客門市（參考用）', o.nearbyStore));
-      card.appendChild(makePlace('外送地址', o.deliveryAddress));
+      card.appendChild(makePlace('外送地址', o.deliveryAddress, { copy: true, map: true }));
 
       // 指派門市
       const field = el('div', 'place');
