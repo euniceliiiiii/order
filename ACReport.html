@@ -1698,6 +1698,33 @@
       color: var(--text-3);
     }
 
+    /* 一次指派:固定在畫面底部 */
+    .bulk-bar {
+      position: sticky;
+      bottom: calc(12px + env(safe-area-inset-bottom));
+      z-index: 20;
+      margin: -84px 16px 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 10px 10px 16px;
+      border-radius: 16px;
+      background: var(--surface);
+      border: 1px solid var(--green);
+      box-shadow: var(--shadow-lg);
+    }
+
+    .bulk-text {
+      flex: 1;
+      min-width: 0;
+      font-size: 14px;
+      color: var(--text-2);
+    }
+
+    .bulk-bar .btn {
+      flex-shrink: 0;
+    }
+
     /* 地點文字(可選取複製) */
     .place-tools {
       display: inline-flex;
@@ -1939,7 +1966,7 @@
     <form id="loginForm" class="login-card" autocomplete="on">
       <div class="login-badge" data-icon="lock"></div>
       <h1>Big Order 管理系統</h1>
-      <p>請輸入你的專屬密碼。登入後這支手機會記住，下次不用再輸入。</p>
+      <p>請輸入你的專屬密碼。登入後這個裝置會記住，下次不用再輸入。</p>
       <div class="pw-wrap">
         <input type="password" id="pwInput" autocomplete="current-password" autocapitalize="off" autocorrect="off"
           spellcheck="false" placeholder="密碼" aria-label="密碼">
@@ -2034,6 +2061,11 @@
       </div>
       <main class="list" id="mailList"></main>
       <main class="list" id="unassignedList" hidden></main>
+      <!-- 選好門市的訂單一次指派 -->
+      <div class="bulk-bar" id="bulkAssignBar" hidden>
+        <span class="bulk-text" id="bulkAssignText"></span>
+        <button type="button" class="btn btn-assign" id="bulkAssignBtn"></button>
+      </div>
     </section>
   </div>
 
@@ -3488,6 +3520,7 @@
       $('mailPendingControls').hidden = !isPending;
       $('mailList').hidden = !isPending;
       $('unassignedList').hidden = isPending;
+      updateBulkBar();
       window.scrollTo(0, 0);
     }
 
@@ -3960,7 +3993,7 @@
       }
     }
 
-    // 地點資訊:文字可以直接選取;opts.copy 顯示「複製」、opts.map 顯示「地圖」(開新分頁)
+    // 地點資訊:文字可以直接選取;opts.copy 顯示「複製」、opts.map 顯示「附近必勝客」(Google 地圖開新分頁)
     function makePlace(labelText, value, opts) {
       opts = opts || {};
       const ok = hasValue(value);
@@ -3977,18 +4010,10 @@
           tools.appendChild(copyBtn);
         }
         if (opts.map) {
-          const mapBtn = el('button', 'copy-btn');
-          mapBtn.type = 'button';
-          mapBtn.innerHTML = svg('pin', 'ic-sm');
-          mapBtn.appendChild(document.createTextNode('地圖'));
-          mapBtn.title = '在新分頁打開 Google 地圖';
-          mapBtn.addEventListener('click', function () { openInMaps(value); });
-          tools.appendChild(mapBtn);
-
           // 在 Google 地圖上搜尋「這個地址附近的必勝客」,地圖會標出周圍每一家
           const nearBtn = el('button', 'copy-btn');
           nearBtn.type = 'button';
-          nearBtn.innerHTML = svg('store', 'ic-sm');
+          nearBtn.innerHTML = svg('pin', 'ic-sm');
           nearBtn.appendChild(document.createTextNode('附近必勝客'));
           nearBtn.title = '在新分頁打開 Google 地圖，搜尋這個地址附近的必勝客';
           nearBtn.addEventListener('click', function () { openInMaps('必勝客 near ' + value); });
@@ -4008,6 +4033,7 @@
     function renderUnassignedList(orders, nearestError) {
       const list = $('unassignedList');
       list.innerHTML = '';
+      updateBulkBar();
       if (!orders.length) {
         emptyUnassigned();
         return;
@@ -4015,7 +4041,7 @@
       if (nearestError) {
         const warn = el('div', 'alert near-error');
         warn.appendChild(iconEl('alert', 'ic-sm'));
-        warn.appendChild(el('span', null, '暫時算不出最近的門市（' + nearestError + '），請用地圖按鈕確認。'));
+        warn.appendChild(el('span', null, '暫時算不出最近的門市（' + nearestError + '），請用「附近必勝客」按鈕確認。'));
         list.appendChild(warn);
       }
       orders.forEach(function (o) { list.appendChild(buildUnassignedCard(o)); });
@@ -4110,11 +4136,96 @@
         select.classList.toggle('placeholder', !select.value);
         confirmBtn.disabled = !select.value;
         setAssignLabel(confirmBtn, select.value);
+        updateBulkBar();
       });
       confirmBtn.addEventListener('click', function () {
         confirmAssign(o, select, confirmBtn, card);
       });
+      card._assign = { order: o, select: select, btn: confirmBtn, card: card };
       return card;
+    }
+
+    // 已選好門市、還沒送出的卡片
+    function pendingAssignments() {
+      return Array.prototype.slice.call($('unassignedList').querySelectorAll('.card'))
+        .filter(function (c) {
+          return c._assign && c._assign.select.value && !c._assign.select.disabled && !c.classList.contains('removing');
+        })
+        .map(function (c) { return c._assign; });
+    }
+
+    function updateBulkBar() {
+      const items = pendingAssignments();
+      const bar = $('bulkAssignBar');
+      bar.hidden = mailTab !== 'unassigned' || !items.length;
+      if (bar.hidden) return;
+      $('bulkAssignText').textContent = '已選好 ' + items.length + ' 筆門市';
+      const btn = $('bulkAssignBtn');
+      btn.disabled = false;
+      btn.innerHTML = svg('store');
+      btn.appendChild(document.createTextNode('一次指派 ' + items.length + ' 筆'));
+    }
+
+    $('bulkAssignBtn').addEventListener('click', bulkAssign);
+
+    // 一次送出所有選好門市的訂單(只打一次 API);每筆各自成功或失敗
+    function bulkAssign() {
+      const items = pendingAssignments();
+      if (!items.length) return;
+      const bar = $('bulkAssignBtn');
+      bar.disabled = true;
+      bar.textContent = '指派中…';
+      items.forEach(function (it) {
+        it.select.disabled = true;
+        it.btn.disabled = true;
+        it.btn.textContent = '處理中…';
+      });
+
+      function resetItem(it) {
+        it.select.disabled = false;
+        it.btn.disabled = !it.select.value;
+        setAssignLabel(it.btn, it.select.value);
+      }
+
+      gasCall('assignStores', {
+        items: items.map(function (it) { return { submitTimeKey: it.order.submitTimeKey, storeName: it.select.value }; })
+      }).then(function (res) {
+        if (!res || !res.success) {
+          alert('指派失敗: ' + (res ? res.error : '未知錯誤'));
+          items.forEach(resetItem);
+          updateBulkBar();
+          return;
+        }
+        let ok = 0;
+        let dup = 0;
+        const failed = [];
+        res.results.forEach(function (r, i) {
+          const it = items[i];
+          if (r && r.success) {
+            ok++;
+            if (r.matchCount > 1) dup++;
+            const idx = unassignedOrders.indexOf(it.order);
+            if (idx !== -1) unassignedOrders.splice(idx, 1);
+            removeCard(it.card, 'unassignedList', emptyUnassigned);
+          } else {
+            failed.push((hasValue(it.order.customer) ? it.order.customer : '第 ' + it.order.rowIndex + ' 列') + '：' + (r ? r.error : '未知錯誤'));
+            resetItem(it);
+          }
+        });
+        setUnassignedTabCount(unassignedOrders.length);
+        updateBulkBar();
+        if (ok) {
+          invalidateReport();
+          showToast('已指派 ' + ok + ' 筆，待寄送訂單同步更新中');
+          loadPending();
+        }
+        if (failed.length) alert('有 ' + failed.length + ' 筆沒有指派成功：\n' + failed.join('\n'));
+        if (dup) alert('注意:有 ' + dup + ' 筆的填寫時間重複，已指派第一筆符合的資料，建議人工確認 worksheet 是否正確');
+      }).catch(function (err) {
+        alert('指派失敗: ' + err.message);
+        items.forEach(resetItem);
+        updateBulkBar();
+      });
     }
 
     function setAssignLabel(btn, storeName) {
@@ -4131,11 +4242,13 @@
       btn.disabled = true;
       btn.textContent = '處理中…';
       select.disabled = true;
+      updateBulkBar();
 
       function reset() {
         btn.disabled = false;
         select.disabled = false;
         setAssignLabel(btn, select.value);
+        updateBulkBar();
       }
 
       gasCall('assignStore', { submitTimeKey: order.submitTimeKey, storeName: storeName })
@@ -4154,6 +4267,7 @@
           invalidateReport();
           showToast('已指派「' + res.storeName + '」，待寄送訂單同步更新中');
           removeCard(card, 'unassignedList', emptyUnassigned);
+          updateBulkBar();
           // 指派完成後自動重整「待寄送」,不用手動按重整才會看到剛指派好的這筆
           loadPending();
         })
