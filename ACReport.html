@@ -2804,7 +2804,7 @@
 
     function buildCard(o) {
       const card = el('article', 'card ' + sClass(o.status));
-      card.id = 'order-' + o.rowIndex;
+      card.id = 'order-' + orderKey(o);
 
       const head = el('div', 'card-head');
       head.appendChild(statusPill(o.status));
@@ -2865,7 +2865,7 @@
       const picker = el('div', 'status-picker');
       picker.setAttribute('role', 'radiogroup');
       picker.setAttribute('aria-label', '節點狀態');
-      const groupName = 'st-' + o.rowIndex;
+      const groupName = 'st-' + orderKey(o);
       STATUSES.forEach(function (s) {
         const opt = el('label', 'status-opt ' + sClass(s));
         const input = document.createElement('input');
@@ -2888,7 +2888,7 @@
       // 成交金額輸入:只有選到「已成交」才顯示
       const amount = el('div', 'amount');
       const amountLabel = el('label', 'section-label', '成交金額');
-      const amountId = 'amt-' + o.rowIndex;
+      const amountId = 'amt-' + orderKey(o);
       amountLabel.htmlFor = amountId;
       amount.appendChild(amountLabel);
       const amountWrap = el('div', 'amount-wrap');
@@ -3666,6 +3666,17 @@
     }
 
     // 寫入時告訴後端是哪一筆:訂單編號優先(填寫時間只當作備用)
+    // 畫面上分辨訂單一律用訂單編號(沒有編號時才退回填寫時間),不用試算表的列號:
+    // 列號會因為排序、刪列而改變,而且「尚未處理信件」的列號跟 worksheet 的列號根本不同
+    function orderKey(o) {
+      return String(o.orderId || ('t' + o.submitTimeKey)).replace(/[^\w-]/g, '_');
+    }
+
+    // 卡片標題 / 錯誤訊息裡的名稱:顧客名 → 訂單編號
+    function orderLabel(o) {
+      return hasValue(o.customer) ? o.customer : (o.orderId ? '訂單 ' + o.orderId : '（顧客未提供）');
+    }
+
     function orderRef(order) {
       return { orderId: order.orderId, submitTimeKey: order.submitTimeKey };
     }
@@ -3687,7 +3698,7 @@
       const sub = el('div', 'card-sub');
       sub.appendChild(iconEl('clock', 'ic-sm'));
       const ago = timeAgo(o.submitTimeKey);
-      sub.appendChild(document.createTextNode('填寫於 ' + (o.submitTimeDisplay || '未知') + (ago ? '・' + ago : '')));
+      sub.appendChild(document.createTextNode((o.orderId ? o.orderId + '・' : '') + '填寫於 ' + (o.submitTimeDisplay || '未知') + (ago ? '・' + ago : '')));
       return sub;
     }
 
@@ -3780,7 +3791,7 @@
     function buildPendingCard(o) {
       const overdue = isOverdue(o);
       const card = el('article', 'card' + (o.missingInfo ? ' is-missing' : (overdue ? ' is-overdue' : '')));
-      card.id = 'mail-' + o.rowIndex;
+      card.id = 'mail-' + orderKey(o);
 
       const head = el('div', 'card-head');
       head.appendChild(el('h3', 'card-title', o.storeName));
@@ -4316,10 +4327,10 @@
 
     function buildUnassignedCard(o) {
       const card = el('article', 'card is-unassigned');
-      card.id = 'unassigned-' + o.rowIndex;
+      card.id = 'unassigned-' + orderKey(o);
 
       const head = el('div', 'card-head');
-      head.appendChild(el('h3', 'card-title', hasValue(o.customer) ? o.customer : ('第 ' + o.rowIndex + ' 列')));
+      head.appendChild(el('h3', 'card-title', orderLabel(o)));
       const badges = el('div', 'badges');
       badges.appendChild(el('span', 'badge late', '待分配'));
       head.appendChild(badges);
@@ -4330,7 +4341,7 @@
 
       // 指派門市
       const field = el('div', 'place');
-      const selectId = 'assign-' + o.rowIndex;
+      const selectId = 'assign-' + orderKey(o);
       const lab = el('label', 'field-label', '指派門市');
       lab.htmlFor = selectId;
       field.appendChild(lab);
@@ -4433,7 +4444,7 @@
             if (idx !== -1) unassignedOrders.splice(idx, 1);
             removeCard(it.card, 'unassignedList', emptyUnassigned);
           } else {
-            failed.push((hasValue(it.order.customer) ? it.order.customer : '第 ' + it.order.rowIndex + ' 列') + '：' + (r ? r.error : '未知錯誤'));
+            failed.push(orderLabel(it.order) + '：' + (r ? r.error : '未知錯誤'));
             resetItem(it);
           }
         });
