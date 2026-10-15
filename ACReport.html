@@ -2120,9 +2120,15 @@
 
     // 統一呼叫後端 API 的小工具:一律 POST + text/plain(避免 CORS preflight),並帶上登入密碼。
     // 密碼錯誤/失效時直接跳回登入畫面,並回傳一個永遠不會完成的 Promise,讓呼叫端不會再蓋掉畫面
-    // 遇到 Google 臨時錯誤頁、逾時或連線中斷時自動重試一次:只讀的動作,以及重做也不會出錯的寄送標記/撤銷
-    // (標記帶同一個 markToken、撤銷核對標記時間,後端判斷得出是重試);指派、更新狀態不自動重試
-    const RETRYABLE_ACTIONS = ['login', 'getReport', 'getOrdersForAc', 'getPendingOrders', 'getUnassignedOrders', 'markAsSent', 'unmarkAsSent'];
+    // 遇到 Google 臨時錯誤頁、逾時或連線中斷時自動重試一次。寫入的動作重做也不會出錯:
+    // 標記帶同一個 markToken、撤銷核對標記時間、指派與更新狀態遇到「已經是要存的值」直接算成功
+    // (操作紀錄 logAcAction 重送會多一列,不重試)
+    const RETRYABLE_ACTIONS = ['login', 'getReport', 'getOrdersForAc', 'getPendingOrders', 'getUnassignedOrders',
+      'markAsSent', 'unmarkAsSent', 'assignStore', 'assignStores', 'updateNodeStatus'];
+    const WRITE_ACTIONS = ['markAsSent', 'unmarkAsSent', 'assignStore', 'assignStores', 'updateNodeStatus'];
+    // 等多久沒回應就中斷(手機網路卡住時按鈕不會一直停在處理中)
+    const READ_TIMEOUT_MS = 30000;
+    const WRITE_TIMEOUT_MS = 45000;
 
     // 每次登入 / 登出都換一個編號;回應回來時編號已經不同(期間有人登出或換人登入),就整個丟掉,
     // 避免上一位使用者的資料(例如管理員的全部訂單)出現在下一位的畫面上
@@ -2132,11 +2138,33 @@
     function gasCall(action, params, isRetry) {
       const session = sessionSeq;
       const body = Object.assign({ action: action, pw: password }, params || {});
-      return fetch(API_BASE_URL, {
+      const isWrite = WRITE_ACTIONS.indexOf(action) !== -1;
+      const limit = isWrite ? WRITE_TIMEOUT_MS : READ_TIMEOUT_MS;
+      const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+      let timer = null;
+      // 時間到就中斷;不支援 AbortController 的瀏覽器也照樣以逾時錯誤結束(請求本身繼續跑完)
+      const timeout = new Promise(function (_, reject) {
+        timer = setTimeout(function () {
+          if (ctrl) ctrl.abort();
+          const e = new Error('連線逾時（等了 ' + Math.round(limit / 1000) + ' 秒沒有回應）');
+          e.retryable = true;
+          e.timeout = true;
+          reject(e);
+        }, limit);
+      });
+      const request = fetch(API_BASE_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify(body)
-      }).then(parseApiResponse_, explainFetchError_).then(function (res) {
+        body: JSON.stringify(body),
+        signal: ctrl ? ctrl.signal : undefined
+      }).then(parseApiResponse_, explainFetchError_);
+      return Promise.race([request, timeout]).then(function (res) {
+        clearTimeout(timer);
+        return res;
+      }, function (err) {
+        clearTimeout(timer);
+        throw err;
+      }).then(function (res) {
         if (session !== sessionSeq) return NEVER();
         if (res && res.authError) {
           showLogin(res.error && res.error !== '密碼錯誤' ? res.error : '密碼錯誤或已失效，請重新輸入');
@@ -2994,12 +3022,28 @@
             logAction('更新節點狀態', order.storeName + '(' + (order.customer || '') + ') → ' + res.status);
             const card = btn.closest('.card');
             setTimeout(function () { refreshSavedCard(order, card); }, 600);
+          } else if (res && res.actual) {
+            // 寫到一半出錯:卡片改成試算表的實際內容,不假裝什麼都沒改
+            order.status = res.actual.status;
+            order.dealAmount = res.actual.dealAmount;
+            order.dealTime = res.actual.dealTime;
+            reportOrders = null;
+            alert('儲存失敗: ' + res.error + '\n試算表目前是「' + label(order.status) + '」' +
+              (order.dealAmount ? '（NT$' + order.dealAmount + '）' : '') + '，卡片已改成這個狀態，請確認後再操作');
+            refreshSavedCard(order, btn.closest('.card'));
           } else {
             alert('儲存失敗: ' + (res ? res.error : '未知錯誤'));
             onFail();
           }
         })
         .catch(function (err) {
+          if (err && err.retryable) {
+            // 逾時或斷線(已自動重試過):不確定有沒有存進去,重新讀取這位 AC 的訂單顯示實際狀態
+            alert('儲存失敗: ' + err.message + '\n無法確認是否已儲存，清單會重新讀取，顯示目前的實際狀態');
+            if (currentAc) loadOrders(currentAc);
+            else onFail();
+            return;
+          }
           alert('儲存失敗: ' + err.message);
           onFail();
         });
@@ -4093,6 +4137,11 @@
           );
         })
         .catch(function (err) {
+          if (err && err.retryable) {
+            alert('標記失敗: ' + err.message + '\n無法確認是否已標記，清單會重新讀取，顯示目前的實際狀態');
+            reloadAfterUnsureWrite();
+            return;
+          }
           alert('標記失敗: ' + err.message);
           resetButtons();
         });
@@ -4508,6 +4557,11 @@
         }
         if (failed.length) alert('有 ' + failed.length + ' 筆沒有指派成功：\n' + failed.join('\n'));
       }).catch(function (err) {
+        if (err && err.retryable) {
+          alert('指派失敗: ' + err.message + '\n無法確認是否已指派，清單會重新讀取，顯示目前的實際狀態');
+          reloadAfterUnsureWrite();
+          return;
+        }
         alert('指派失敗: ' + err.message);
         items.forEach(resetItem);
         updateBulkBar();
@@ -4555,9 +4609,21 @@
           loadPending();
         })
         .catch(function (err) {
+          if (err && err.retryable) {
+            alert('指派失敗: ' + err.message + '\n無法確認是否已指派，清單會重新讀取，顯示目前的實際狀態');
+            reloadAfterUnsureWrite();
+            return;
+          }
           alert('指派失敗: ' + err.message);
           reset();
         });
+    }
+
+    // 寫入逾時或斷線、自動重試也失敗:不知道後端到底寫了沒,重新讀取寄信助手兩個清單
+    function reloadAfterUnsureWrite() {
+      invalidateReport();
+      loadPending();
+      loadUnassigned();
     }
 
     let savedPw = '';
