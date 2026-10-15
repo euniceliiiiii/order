@@ -2120,8 +2120,9 @@
 
     // 統一呼叫後端 API 的小工具:一律 POST + text/plain(避免 CORS preflight),並帶上登入密碼。
     // 密碼錯誤/失效時直接跳回登入畫面,並回傳一個永遠不會完成的 Promise,讓呼叫端不會再蓋掉畫面
-    // 只讀不寫的動作:遇到 Google 臨時錯誤頁時自動重試一次(寫入的動作不重試,避免重複寫入)
-    const RETRYABLE_ACTIONS = ['login', 'getReport', 'getOrdersForAc', 'getPendingOrders', 'getUnassignedOrders'];
+    // 遇到 Google 臨時錯誤頁、逾時或連線中斷時自動重試一次:只讀的動作,以及重做也不會出錯的寄送標記/撤銷
+    // (標記帶同一個 markToken、撤銷核對標記時間,後端判斷得出是重試);指派、更新狀態不自動重試
+    const RETRYABLE_ACTIONS = ['login', 'getReport', 'getOrdersForAc', 'getPendingOrders', 'getUnassignedOrders', 'markAsSent', 'unmarkAsSent'];
 
     // 每次登入 / 登出都換一個編號;回應回來時編號已經不同(期間有人登出或換人登入),就整個丟掉,
     // 避免上一位使用者的資料(例如管理員的全部訂單)出現在下一位的畫面上
@@ -2145,7 +2146,7 @@
       }, function (err) {
         if (session !== sessionSeq) return NEVER();
         if (err.retryable && !isRetry && RETRYABLE_ACTIONS.indexOf(action) !== -1) {
-          return new Promise(function (resolve) { setTimeout(resolve, 1500); })
+          return new Promise(function (resolve) { setTimeout(resolve, 2000); })
             .then(function () { return session === sessionSeq ? gasCall(action, params, true) : NEVER(); });
         }
         throw err;
@@ -2178,7 +2179,9 @@
 
     // 跨網域時瀏覽器只會給 "Failed to fetch",補上最常見的原因
     function explainFetchError_(err) {
-      throw new Error(err.message + '\n可能原因:① 網路中斷;② API_BASE_URL 不是 apps-script-api 的 /exec 網址;③ 頁面放在禁止對外連線的環境(例如 Claude Artifact)。');
+      const e = new Error(err.message + '\n可能原因:① 網路中斷;② API_BASE_URL 不是 apps-script-api 的 /exec 網址;③ 頁面放在禁止對外連線的環境(例如 Claude Artifact)。');
+      e.retryable = true;
+      throw e;
     }
 
     // ===== 圖示(靜態 SVG,只用在固定字串,不放使用者資料) =====
@@ -2923,8 +2926,17 @@
         return checked ? checked.value : o.status;
       }
 
+      // 儲存中:整張卡片的選項跟金額都鎖住,避免改到一半又送出第二次、或回應回來重建卡片時把修改清掉
+      let saving = false;
+      function setSaving(on) {
+        saving = on;
+        picker.querySelectorAll('input').forEach(function (i) { i.disabled = on; });
+        amountInput.disabled = on;
+      }
+
       // 沒有變更就不能按儲存,避免誤觸;有變更時按鈕才亮起來
       function refreshDirty() {
+        if (saving) return;
         const s = selected();
         amount.hidden = s !== STATUS_WON;
         const changed = s !== o.status || (s === STATUS_WON && amountInput.value.trim() !== String(o.dealAmount || ''));
@@ -2938,14 +2950,18 @@
       });
       amountInput.addEventListener('input', refreshDirty);
       saveBtn.addEventListener('click', function () {
-        saveStatus(o, selected(), amountInput.value.trim(), saveBtn, refreshDirty);
+        if (saving) return;
+        saveStatus(o, selected(), amountInput.value.trim(), saveBtn, setSaving, function onFail() {
+          setSaving(false);
+          refreshDirty();
+        });
       });
       refreshDirty();
 
       return card;
     }
 
-    function saveStatus(order, newStatus, amountValue, btn, onFail) {
+    function saveStatus(order, newStatus, amountValue, btn, setSaving, onFail) {
       if (newStatus === STATUS_WON) {
         const amt = Number(amountValue);
         if (!amountValue || isNaN(amt) || amt <= 0) {
@@ -2954,15 +2970,22 @@
         }
       }
 
+      setSaving(true);
       btn.disabled = true;
       btn.textContent = '儲存中…';
 
-      gasCall('updateNodeStatus', { orderId: order.orderId, submitTimeKey: order.submitTimeKey, newStatus: newStatus, dealAmount: amountValue })
+      // expected*:畫面上看到的舊值,後端發現試算表已被別人改過就不覆蓋
+      gasCall('updateNodeStatus', {
+        orderId: order.orderId, submitTimeKey: order.submitTimeKey, newStatus: newStatus, dealAmount: amountValue,
+        expectedStatus: order.status, expectedAmount: order.status === STATUS_WON ? String(order.dealAmount || '') : ''
+      })
         .then(function (res) {
           if (res && res.success) {
+            // 採用後端實際存進試算表的值(含第一次成交的成交時間)
             order.status = res.status;
-            order.dealAmount = (res.status === STATUS_WON) ? amountValue : '';
-            if (res.status !== STATUS_WON) order.dealTime = '';
+            order.dealAmount = res.dealAmount !== undefined ? res.dealAmount : (res.status === STATUS_WON ? amountValue : '');
+            if (res.dealTime !== undefined) order.dealTime = res.dealTime;
+            else if (res.status !== STATUS_WON) order.dealTime = '';
             btn.innerHTML = svg('check', 'ic-sm');
             btn.appendChild(document.createTextNode('已儲存'));
             btn.classList.add('is-saved');
@@ -4016,7 +4039,9 @@
         setDoneLabel(btn, 'idle');
       }
 
-      gasCall('markAsSent', orderRef(order))
+      // 這次按下的代碼:逾時自動重試時帶同一個,後端才知道是同一次操作
+      const markToken = Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+      gasCall('markAsSent', Object.assign({ markToken: markToken }, orderRef(order)))
         .then(function (res) {
           if (!res || !res.success) {
             alert('標記失敗: ' + (res ? res.error : '未知錯誤'));
@@ -4027,6 +4052,13 @@
           card.classList.add('is-done');
           removeMailOrder(order);
           invalidateReport();
+
+          // 別人(或另一個分頁)之前就標記過:保留原本的時間,不提供撤銷
+          if (res.alreadySent) {
+            showToast(order.storeName + ' 之前已標記過（' + res.operationTime + '），時間未變更');
+            setTimeout(function () { removeCard(card, 'mailList', applyMailFilters); }, 1200);
+            return;
+          }
 
           // 給 5 秒的撤銷時間,期間卡片先留在畫面上(變淡)
           showUndoToast(
@@ -4039,7 +4071,7 @@
                 alert('撤銷失敗: ' + message + '\n清單會重新讀取，顯示目前的實際狀態');
                 loadPending();
               }
-              gasCall('unmarkAsSent', orderRef(order))
+              gasCall('unmarkAsSent', Object.assign({ operationTime: res.operationTime }, orderRef(order)))
                 .then(function (r) {
                   if (r && r.success) {
                     resetButtons();
