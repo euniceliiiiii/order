@@ -672,6 +672,14 @@
       margin-top: 2px;
     }
 
+    .order-no {
+      margin-top: 2px;
+      font-size: 12px;
+      color: var(--text-3);
+      font-variant-numeric: tabular-nums;
+      letter-spacing: .02em;
+    }
+
     .alert {
       display: flex;
       gap: 8px;
@@ -2067,7 +2075,7 @@
           </div>
           <label class="search">
             <span data-icon="search"></span>
-            <input type="search" id="searchInput" placeholder="搜尋顧客、門市或電話" aria-label="搜尋">
+            <input type="search" id="searchInput" placeholder="搜尋顧客、門市、電話或訂單編號" aria-label="搜尋">
           </label>
         </div>
       </div>
@@ -2688,7 +2696,7 @@
 
     function matchesSearch(o) {
       if (!searchKeyword) return true;
-      return [o.customer, o.storeName, o.phone].join(' ').toLowerCase().indexOf(searchKeyword) !== -1;
+      return [o.customer, o.storeName, o.phone, o.orderId].join(' ').toLowerCase().indexOf(searchKeyword) !== -1;
     }
 
     function isClosed(o) {
@@ -2821,6 +2829,7 @@
         sub.appendChild(document.createTextNode(o.storeName));
         card.appendChild(sub);
       }
+      if (o.orderId) card.appendChild(el('div', 'order-no', '訂單編號 ' + o.orderId));
 
       // 「待下單」且用餐日期逼近/已過期時,額外提示
       if (o.status === STATUS_NOT_ORDERED && typeof o.daysUntil === 'number' && o.daysUntil <= 2) {
@@ -3694,11 +3703,12 @@
       });
     }
 
-    function submitLine(o) {
+    // 填寫時間那一行;標題已經是訂單編號(沒有顧客名)時,這裡就不再重複編號
+    function submitLine(o, titleIsId) {
       const sub = el('div', 'card-sub');
       sub.appendChild(iconEl('clock', 'ic-sm'));
       const ago = timeAgo(o.submitTimeKey);
-      sub.appendChild(document.createTextNode((o.orderId ? o.orderId + '・' : '') + '填寫於 ' + (o.submitTimeDisplay || '未知') + (ago ? '・' + ago : '')));
+      sub.appendChild(document.createTextNode((o.orderId && !titleIsId ? o.orderId + '・' : '') + '填寫於 ' + (o.submitTimeDisplay || '未知') + (ago ? '・' + ago : '')));
       return sub;
     }
 
@@ -4197,6 +4207,7 @@
         list.appendChild(warn);
       }
       orders.forEach(function (o) { list.appendChild(buildUnassignedCard(o)); });
+      updateBulkBar();
     }
 
     // ----- 顧客填的「鄰近必勝客門市」模糊比對到門市名單 -----
@@ -4335,7 +4346,7 @@
       badges.appendChild(el('span', 'badge late', '待分配'));
       head.appendChild(badges);
       card.appendChild(head);
-      card.appendChild(submitLine(o));
+      card.appendChild(submitLine(o, !hasValue(o.customer)));
 
       card.appendChild(makePlace('外送地址', o.deliveryAddress, { copy: true, map: true, site: true }));
 
@@ -4380,6 +4391,14 @@
         confirmAssign(o, select, confirmBtn, card);
       });
       card._assign = { order: o, select: select, btn: confirmBtn, card: card };
+
+      // 預設選離外送地址最近、且在門市名單裡的那家(建議清單順序不變,顧客填的仍排第一)
+      const closest = (o.nearest || []).filter(function (s) { return s.match && s.km !== undefined; })
+        .sort(function (a, b) { return a.km - b.km; })[0];
+      if (closest) {
+        select.value = closest.match;
+        select.dispatchEvent(new Event('change'));
+      }
       return card;
     }
 
