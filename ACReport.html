@@ -1143,8 +1143,10 @@
     /* 表格:手機上可左右滑,第一欄固定。
        捲動容器本身不能有左右 padding(sticky 會停在 padding 內緣,左邊會露出一條滑過去的資料),
        改成由第一欄 / 最後一欄自己留白 */
+    /* 首列凍結:表格自己的捲動框要能上下捲,標題列才黏得住(超過 70% 螢幕高才會出現上下捲動) */
     .tbl-wrap {
-      overflow-x: auto;
+      overflow: auto;
+      max-height: 70vh;
       margin: 0 -16px;
       padding: 0;
     }
@@ -1190,6 +1192,17 @@
       color: var(--text-3);
       font-weight: 600;
       padding-top: 4px;
+    }
+
+    /* 首列凍結;左上角那格同時凍結列與欄,要蓋在兩者上面 */
+    .tbl thead th {
+      position: sticky;
+      top: 0;
+      z-index: 3;
+    }
+
+    .tbl thead th:first-child {
+      z-index: 4;
     }
 
     .tbl th button {
