@@ -4218,11 +4218,16 @@
           onUnassignedError({ message: result ? result.error : '後端回傳空值' });
           return;
         }
-        unassignedOrders = sortBySubmit(result.orders || []);
-        storeNameOptions = result.storeNames || [];
-        setUnassignedTabCount(unassignedOrders.length);
-        renderUnassignedList(unassignedOrders, result.nearestError);
-        if (keepList && view === 'mail') showUpdated('mail');
+        if (keepList) {
+          // 清單已經在畫面上(可能已經選了門市):只補上最近門市,不重建
+          applyNearestInPlace(result);
+          if (view === 'mail') showUpdated('mail');
+        } else {
+          unassignedOrders = sortBySubmit(result.orders || []);
+          storeNameOptions = result.storeNames || [];
+          setUnassignedTabCount(unassignedOrders.length);
+          renderUnassignedList(unassignedOrders, result.nearestError);
+        }
         // 讀取期間切到了「待分配門市」:再抓一次帶最近門市的版本
         if (!withNearest && mailTab === 'unassigned') loadUnassigned();
       })).catch(fresh(onUnassignedError));
@@ -4341,12 +4346,7 @@
         emptyUnassigned();
         return;
       }
-      if (nearestError) {
-        const warn = el('div', 'alert near-error');
-        warn.appendChild(iconEl('alert', 'ic-sm'));
-        warn.appendChild(el('span', null, '暫時算不出最近的門市（' + nearestError + '），請用「附近必勝客」按鈕確認。'));
-        list.appendChild(warn);
-      }
+      if (nearestError) list.appendChild(nearErrorEl(nearestError));
       orders.forEach(function (o) { list.appendChild(buildUnassignedCard(o)); });
       updateBulkBar();
     }
@@ -4512,7 +4512,10 @@
       });
       field.appendChild(select);
       const suggestions = makeSuggestions(o, select);
-      if (suggestions) card.appendChild(suggestions);
+      if (suggestions) {
+        suggestions.classList.add('sugg-block');
+        card.appendChild(suggestions);
+      }
       card.appendChild(field);
 
       const actions = el('div', 'actions');
@@ -4523,6 +4526,8 @@
       card.appendChild(actions);
 
       select.addEventListener('change', function () {
+        // 不是系統自動預選的變更 = 使用者自己選的(下拉選單或點建議門市),之後不再自動改掉
+        if (!autoPicking && card._assign) card._assign.userPicked = true;
         select.classList.toggle('placeholder', !select.value);
         confirmBtn.disabled = !select.value;
         setAssignLabel(confirmBtn, select.value);
@@ -4531,16 +4536,62 @@
       confirmBtn.addEventListener('click', function () {
         confirmAssign(o, select, confirmBtn, card);
       });
-      card._assign = { order: o, select: select, btn: confirmBtn, card: card };
-
-      // 預設選離外送地址最近、且在門市名單裡的那家(建議清單順序不變,顧客填的仍排第一)
-      const closest = (o.nearest || []).filter(function (s) { return s.match && s.km !== undefined; })
-        .sort(function (a, b) { return a.km - b.km; })[0];
-      if (closest) {
-        select.value = closest.match;
-        select.dispatchEvent(new Event('change'));
-      }
+      card._assign = { order: o, select: select, btn: confirmBtn, card: card, userPicked: false };
+      preselectNearest(card);
       return card;
+    }
+
+    // 預設選離外送地址最近、且在門市名單裡的那家(建議清單順序不變,顧客填的仍排第一)
+    // 使用者已經自己選過、或正在送出的卡片不動
+    let autoPicking = false;
+    function preselectNearest(card) {
+      const a = card._assign;
+      if (!a || a.userPicked || a.select.disabled) return;
+      const closest = (a.order.nearest || []).filter(function (s) { return s.match && s.km !== undefined; })
+        .sort(function (x, y) { return x.km - y.km; })[0];
+      if (!closest) return;
+      autoPicking = true;
+      try {
+        a.select.value = closest.match;
+        a.select.dispatchEvent(new Event('change'));
+      } finally {
+        autoPicking = false;
+      }
+    }
+
+    function nearErrorEl(message) {
+      const warn = el('div', 'alert near-error');
+      warn.appendChild(iconEl('alert', 'ic-sm'));
+      warn.appendChild(el('span', null, '暫時算不出最近的門市（' + message + '），請用「附近必勝客」按鈕確認。'));
+      return warn;
+    }
+
+    // 最近門市查好了:就地更新每張卡片的「建議門市」,不重建卡片
+    // (使用者在查詢期間選好的門市、正在送出的卡片都保留;剛指派掉或新進的訂單這次不增減,重新整理時才更新)
+    function applyNearestInPlace(result) {
+      const list = $('unassignedList');
+      const oldWarn = list.querySelector('.near-error');
+      if (oldWarn) oldWarn.remove();
+      if (result.nearestError) list.insertBefore(nearErrorEl(result.nearestError), list.firstChild);
+      (result.orders || []).forEach(function (o) {
+        const card = document.getElementById('unassigned-' + orderKey(o));
+        if (!card || !card._assign) return;
+        const a = card._assign;
+        a.order.nearest = o.nearest;
+        a.order.nearestNote = o.nearestNote;
+        const old = card.querySelector('.sugg-block');
+        if (old) old.remove();
+        const sug = makeSuggestions(a.order, a.select);
+        if (sug) {
+          sug.classList.add('sugg-block');
+          card.insertBefore(sug, a.select.parentNode);
+          sug.querySelectorAll('.near-btn').forEach(function (b) {
+            b.classList.toggle('chosen', !!b.dataset.match && b.dataset.match === a.select.value);
+          });
+        }
+        preselectNearest(card);
+      });
+      updateBulkBar();
     }
 
     // 已選好門市、還沒送出的卡片
