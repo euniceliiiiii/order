@@ -4230,7 +4230,8 @@
       }
       gasCall('getUnassignedOrders', { withNearest: withNearest }).then(fresh(function (result) {
         unassignedBusy = false;
-        unassignedHasNearest = withNearest && !!(result && result.success);
+        // 清單讀到了不代表最近門市查好了:後端可能附上 nearestError,這時切回分頁要再查
+        unassignedHasNearest = withNearest && !!(result && result.success) && !result.nearestError;
         clearTimeout(unassignedLoadingTimeout);
         if (!result || !result.success) {
           if (keepList) nearFailed(result ? result.error : '後端回傳空值');
@@ -4490,7 +4491,9 @@
         btn.appendChild(main);
         if (r.km !== undefined) btn.appendChild(el('span', 'near-km', r.km + ' km'));
         if (r.match) {
+          btn.disabled = select.disabled; // 送出中才補上建議時,一樣先鎖住
           btn.addEventListener('click', function () {
+            if (select.disabled) return; // 送出中不能改門市
             select.value = r.match;
             select.dispatchEvent(new Event('change'));
           });
@@ -4659,13 +4662,13 @@
       bar.disabled = true;
       bar.textContent = '指派中…';
       items.forEach(function (it) {
-        it.select.disabled = true;
+        lockAssignSelect(it.select, true);
         it.btn.disabled = true;
         it.btn.textContent = '處理中…';
       });
 
       function resetItem(it) {
-        it.select.disabled = false;
+        lockAssignSelect(it.select, false);
         it.btn.disabled = !it.select.value;
         setAssignLabel(it.btn, it.select.value);
       }
@@ -4713,6 +4716,16 @@
       });
     }
 
+    // 送出中:下拉選單和建議門市按鈕一起鎖住(找不到門市的建議本來就停用,不動)
+    function lockAssignSelect(select, locked) {
+      select.disabled = locked;
+      const card = select.closest('.card');
+      if (!card) return;
+      card.querySelectorAll('.near-btn').forEach(function (b) {
+        if (b.dataset.match) b.disabled = locked;
+      });
+    }
+
     function setAssignLabel(btn, storeName) {
       btn.innerHTML = svg('store');
       btn.appendChild(document.createTextNode(storeName ? '指派給「' + storeName + '」' : '請先選擇門市'));
@@ -4726,12 +4739,12 @@
       }
       btn.disabled = true;
       btn.textContent = '處理中…';
-      select.disabled = true;
+      lockAssignSelect(select, true);
       updateBulkBar();
 
       function reset() {
         btn.disabled = false;
-        select.disabled = false;
+        lockAssignSelect(select, false);
         setAssignLabel(btn, select.value);
         updateBulkBar();
       }
