@@ -2120,20 +2120,26 @@
 
     // 統一呼叫後端 API 的小工具:一律 POST + text/plain(避免 CORS preflight),並帶上登入密碼。
     // 密碼錯誤/失效時直接跳回登入畫面,並回傳一個永遠不會完成的 Promise,讓呼叫端不會再蓋掉畫面
-    // 遇到 Google 臨時錯誤頁、逾時或連線中斷時自動重試一次。寫入的動作重做也不會出錯:
+    // 遇到 Google 臨時錯誤頁或連線中斷時自動重試一次(逾時不重試)。寫入的動作重做也不會出錯:
     // 標記帶同一個 markToken、撤銷核對標記時間、指派與更新狀態遇到「已經是要存的值」直接算成功
     // (操作紀錄 logAcAction 重送會多一列,不重試)
     const RETRYABLE_ACTIONS = ['login', 'getReport', 'getOrdersForAc', 'getPendingOrders', 'getUnassignedOrders',
       'markAsSent', 'unmarkAsSent', 'assignStore', 'assignStores', 'updateNodeStatus'];
     const WRITE_ACTIONS = ['markAsSent', 'unmarkAsSent', 'assignStore', 'assignStores', 'updateNodeStatus'];
     // 等多久沒回應就中斷(手機網路卡住時按鈕不會一直停在處理中)
-    const READ_TIMEOUT_MS = 30000;
-    const WRITE_TIMEOUT_MS = 45000;
+    // 不能設太短:試算表大時 Google 本來就要 20~40 秒,太早中斷再重送只會讓伺服器多做一次、更慢
+    const READ_TIMEOUT_MS = 90000;
+    const WRITE_TIMEOUT_MS = 90000;
 
     // 每次登入 / 登出都換一個編號;回應回來時編號已經不同(期間有人登出或換人登入),就整個丟掉,
     // 避免上一位使用者的資料(例如管理員的全部訂單)出現在下一位的畫面上
     let sessionSeq = 0;
     const NEVER = function () { return new Promise(function () { }); };
+    // 進行中的請求;登出時全部中斷
+    const inflight = [];
+    function abortInflight() {
+      inflight.splice(0).forEach(function (c) { try { c.abort(); } catch (e) { } });
+    }
 
     function gasCall(action, params, isRetry) {
       const session = sessionSeq;
@@ -2141,6 +2147,11 @@
       const isWrite = WRITE_ACTIONS.indexOf(action) !== -1;
       const limit = isWrite ? WRITE_TIMEOUT_MS : READ_TIMEOUT_MS;
       const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+      if (ctrl) inflight.push(ctrl);
+      function done() {
+        const i = inflight.indexOf(ctrl);
+        if (i !== -1) inflight.splice(i, 1);
+      }
       let timer = null;
       // 時間到就中斷;不支援 AbortController 的瀏覽器也照樣以逾時錯誤結束(請求本身繼續跑完)
       const timeout = new Promise(function (_, reject) {
@@ -2160,9 +2171,11 @@
       }).then(parseApiResponse_, explainFetchError_);
       return Promise.race([request, timeout]).then(function (res) {
         clearTimeout(timer);
+        done();
         return res;
       }, function (err) {
         clearTimeout(timer);
+        done();
         throw err;
       }).then(function (res) {
         if (session !== sessionSeq) return NEVER();
@@ -2173,7 +2186,8 @@
         return res;
       }, function (err) {
         if (session !== sessionSeq) return NEVER();
-        if (err.retryable && !isRetry && RETRYABLE_ACTIONS.indexOf(action) !== -1) {
+        // 逾時不再重送:伺服器可能還在算,重送只會讓它多做一次、使用者多等一輪
+        if (err.retryable && !err.timeout && !isRetry && RETRYABLE_ACTIONS.indexOf(action) !== -1) {
           return new Promise(function (resolve) { setTimeout(resolve, 2000); })
             .then(function () { return session === sessionSeq ? gasCall(action, params, true) : NEVER(); });
         }
@@ -2316,6 +2330,7 @@
     let loadingTimeout;
     let reportOrders = null;
     let reportOps = null;     // 管理員才有:待寄送 / 待分配 / 今天的每日摘要寄送結果
+    let initialReport = null; // 登入時一起帶回、還沒顯示的報表
     const reportFilter = { period: 'all', rc: '', ac: '' };
     const tableSort = {};
     let showAllStores = false;
@@ -2487,7 +2502,12 @@
       btn.textContent = '驗證中…';
       $('loginError').textContent = '';
 
-      gasCall('login').then(function (res) {
+      // 第一頁要看的資料(AC 的訂單明細、管理員／RC 的報表)由登入一起帶回,不用再等一趟;
+      // 開啟頁面的操作紀錄也由後端在登入時寫
+      gasCall('login', {
+        withInitial: location.hash === '#mail' ? 'none' : 'report',
+        fromStorage: !!fromStorage
+      }).then(function (res) {
         btn.disabled = false;
         btn.textContent = '登入';
         if (!res || !res.success) {
@@ -2509,7 +2529,7 @@
           $('viewSwitchWrap').hidden = false;
           $('adminPicker').hidden = true;
           setView('detail', true);
-          loadOrders(res.ac);
+          loadOrders(res.ac, res.initial && res.initial.orders);
         } else {
           if (role === 'admin') {
             setIdentity(res.name || '管理員', '管理員・可查看全部報表、訂單與寄信助手');
@@ -2523,9 +2543,9 @@
           $('acView').hidden = true;
           showState('list', '👆', '請選擇要查看的 AC', '從上方下拉選單選一位 AC');
           // 舊的寄信助手網址會轉到 #mail,管理員直接打開寄信助手
+          initialReport = (res.initial && res.initial.report) || null;
           setView(role === 'admin' && location.hash === '#mail' ? 'mail' : 'report', true);
         }
-        logAction('開啟頁面', fromStorage ? '瀏覽器記住的密碼' : '輸入密碼登入');
       }).catch(function (err) {
         btn.disabled = false;
         btn.textContent = '登入';
@@ -2541,12 +2561,19 @@
 
     function showLogin(message) {
       sessionSeq++;
+      abortInflight();
       password = '';
       role = '';
       currentAc = '';
       allOrders = [];
       reportOrders = null;
       reportOps = null;
+      initialReport = null;
+      // 畫面上已經顯示過的訂單、報表、信件內容也要清掉(只藏起來的話,用開發者工具還看得到)
+      ['list', 'stats', 'reportBody', 'mailList', 'unassignedList'].forEach(function (id) { $(id).innerHTML = ''; });
+      $('acSelect').innerHTML = '';
+      $('toast-wrap').innerHTML = '';
+      setIdentity('', '');
       reportFilter.period = 'all';
       reportFilter.rc = '';
       reportFilter.ac = '';
@@ -2688,10 +2715,16 @@
     // =====================================================================
     // 訂單明細
     // =====================================================================
-    function loadOrders(acEmail) {
+    // preloaded:登入時一起帶回的資料(有的話直接用,不再打 API)
+    function loadOrders(acEmail, preloaded) {
       currentAc = acEmail;
       stale.detail = false;
       $('acView').hidden = false;
+      const fresh = latestOnly('orders');
+      if (preloaded) {
+        fresh(onOrdersLoaded)(preloaded);
+        return;
+      }
       setStatus('載入中…');
       showSkeleton('list');
       clearTimeout(loadingTimeout);
@@ -2699,7 +2732,6 @@
         setStatus('已等待超過 10 秒，仍在等待回應…');
       }, 10000);
 
-      const fresh = latestOnly('orders');
       gasCall('getOrdersForAc', { ac: acEmail }).then(fresh(onOrdersLoaded)).catch(fresh(function (err) {
         clearTimeout(loadingTimeout);
         setStatus('載入失敗');
@@ -3108,7 +3140,7 @@
       renderPeriodChips();
 
       const fresh = latestOnly('report');
-      gasCall('getReport').then(fresh(function (res) {
+      function onReport(res) {
         $('reportBody').classList.remove('is-stale');
         if (!res || !res.success) {
           setStatus('載入失敗');
@@ -3122,7 +3154,15 @@
         rebuildRcFilter();
         rebuildAcFilter();
         renderReport();
-      })).catch(fresh(function (err) {
+      }
+      // 登入時已經一起帶回來的報表:直接用(只用一次,之後按重新整理才重抓)
+      if (initialReport) {
+        const res = initialReport;
+        initialReport = null;
+        fresh(onReport)(res);
+        return;
+      }
+      gasCall('getReport').then(fresh(onReport)).catch(fresh(function (err) {
         $('reportBody').classList.remove('is-stale');
         setStatus('載入失敗');
         showError('reportBody', err.message, loadReport);
@@ -3647,6 +3687,8 @@
     let storeNameOptions = [];
     let mailFilter = 'all';    // 'all' | 'missing' | 'overdue'
     let mailTab = 'pending';   // 'pending' | 'unassigned'
+    let unassignedHasNearest = false; // 目前的待分配清單是否已算好最近門市
+    let unassignedBusy = false;
     let mailLoadingTimeout;
     let unassignedLoadingTimeout;
     const mailCounts = { pending: null, unassigned: null };
@@ -3679,12 +3721,16 @@
       $('unassignedList').hidden = isPending;
       updateBulkBar();
       window.scrollTo(0, 0);
+      // 第一次打開「待分配門市」才查最近門市
+      if (!isPending && mailLoaded && !unassignedHasNearest && !unassignedBusy) loadUnassigned();
     }
 
     function resetMail() {
       mailLoaded = false;
       mailOrders = [];
       unassignedOrders = [];
+      unassignedHasNearest = false;
+      unassignedBusy = false;
       mailCounts.pending = null;
       mailCounts.unassigned = null;
       clearTimeout(mailLoadingTimeout);
@@ -4148,15 +4194,25 @@
     }
 
     // ----- 待分配門市 -----
+    // 最近門市要查地址座標,比較慢:沒打開「待分配門市」分頁時只抓清單(算筆數),切過去才查最近門市
     function loadUnassigned() {
-      showSkeleton('unassignedList');
+      const withNearest = mailTab === 'unassigned';
+      const keepList = withNearest && unassignedOrders.length && !unassignedHasNearest;
+      if (keepList) {
+        setMailStatus('正在計算最近的門市…');
+      } else {
+        showSkeleton('unassignedList');
+      }
+      unassignedBusy = true;
       clearTimeout(unassignedLoadingTimeout);
       unassignedLoadingTimeout = setTimeout(function () {
         if (mailTab === 'unassigned') setMailStatus('已等待超過 10 秒，仍在等待回應…');
       }, 10000);
 
       const fresh = latestOnly('unassigned');
-      gasCall('getUnassignedOrders', { withNearest: true }).then(fresh(function (result) {
+      gasCall('getUnassignedOrders', { withNearest: withNearest }).then(fresh(function (result) {
+        unassignedBusy = false;
+        unassignedHasNearest = withNearest && !!(result && result.success);
         clearTimeout(unassignedLoadingTimeout);
         if (!result || !result.success) {
           onUnassignedError({ message: result ? result.error : '後端回傳空值' });
@@ -4166,10 +4222,14 @@
         storeNameOptions = result.storeNames || [];
         setUnassignedTabCount(unassignedOrders.length);
         renderUnassignedList(unassignedOrders, result.nearestError);
+        if (keepList && view === 'mail') showUpdated('mail');
+        // 讀取期間切到了「待分配門市」:再抓一次帶最近門市的版本
+        if (!withNearest && mailTab === 'unassigned') loadUnassigned();
       })).catch(fresh(onUnassignedError));
     }
 
     function onUnassignedError(err) {
+      unassignedBusy = false;
       clearTimeout(unassignedLoadingTimeout);
       setUnassignedTabCount(null);
       showError('unassignedList', err && err.message ? err.message : JSON.stringify(err), loadUnassigned);
