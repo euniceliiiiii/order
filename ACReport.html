@@ -1857,12 +1857,19 @@
       vertical-align: 2px;
     }
 
-    #mailView .list>.near-error {
+    #mailView .list>.near-error,
+    #mailView .list>.near-loading {
       margin-top: 0;
     }
 
+    #mailView .list>.near-loading {
+      background: var(--blue-soft, #eaf1fd);
+      color: var(--blue);
+    }
+
     @media (min-width: 760px) {
-      #mailView .list>.near-error {
+      #mailView .list>.near-error,
+      #mailView .list>.near-loading {
         grid-column: 1 / -1;
       }
     }
@@ -4195,11 +4202,12 @@
 
     // ----- 待分配門市 -----
     // 最近門市要查地址座標,比較慢:沒打開「待分配門市」分頁時只抓清單(算筆數),切過去才查最近門市
-    function loadUnassigned() {
-      const withNearest = mailTab === 'unassigned';
+    // forceNearest:清單已經先顯示,接著在背景補查附近門市與距離(不用等使用者切到這個分頁)
+    function loadUnassigned(forceNearest) {
+      const withNearest = forceNearest === true || mailTab === 'unassigned';
       const keepList = withNearest && unassignedOrders.length && !unassignedHasNearest;
       if (keepList) {
-        setMailStatus('正在計算最近的門市…');
+        showNearLoading(true);
       } else {
         showSkeleton('unassignedList');
       }
@@ -4210,27 +4218,53 @@
       }, 10000);
 
       const fresh = latestOnly('unassigned');
+      // 背景補查失敗:清單和已選的門市都留著,只在上方說明;切回這個分頁或按重新整理會再試
+      function nearFailed(message) {
+        unassignedBusy = false;
+        clearTimeout(unassignedLoadingTimeout);
+        showNearLoading(false);
+        const list = $('unassignedList');
+        const oldWarn = list.querySelector('.near-error');
+        if (oldWarn) oldWarn.remove();
+        list.insertBefore(nearErrorEl(message), list.firstChild);
+      }
       gasCall('getUnassignedOrders', { withNearest: withNearest }).then(fresh(function (result) {
         unassignedBusy = false;
         unassignedHasNearest = withNearest && !!(result && result.success);
         clearTimeout(unassignedLoadingTimeout);
         if (!result || !result.success) {
-          onUnassignedError({ message: result ? result.error : '後端回傳空值' });
+          if (keepList) nearFailed(result ? result.error : '後端回傳空值');
+          else onUnassignedError({ message: result ? result.error : '後端回傳空值' });
           return;
         }
         if (keepList) {
           // 清單已經在畫面上(可能已經選了門市):只補上最近門市,不重建
+          showNearLoading(false);
           applyNearestInPlace(result);
-          if (view === 'mail') showUpdated('mail');
         } else {
           unassignedOrders = sortBySubmit(result.orders || []);
           storeNameOptions = result.storeNames || [];
           setUnassignedTabCount(unassignedOrders.length);
           renderUnassignedList(unassignedOrders, result.nearestError);
         }
-        // 讀取期間切到了「待分配門市」:再抓一次帶最近門市的版本
-        if (!withNearest && mailTab === 'unassigned') loadUnassigned();
-      })).catch(fresh(onUnassignedError));
+        // 清單先出來了,接著在背景查附近門市與距離
+        if (!withNearest && unassignedOrders.length) loadUnassigned(true);
+      })).catch(fresh(function (err) {
+        if (keepList) nearFailed(err && err.message ? err.message : String(err));
+        else onUnassignedError(err);
+      }));
+    }
+
+    // 待分配清單最上方的「正在找附近門市與距離…」提示
+    function showNearLoading(on) {
+      const list = $('unassignedList');
+      const old = list.querySelector('.near-loading');
+      if (old) old.remove();
+      if (!on) return;
+      const tip = el('div', 'alert near-loading');
+      tip.appendChild(iconEl('clock', 'ic-sm'));
+      tip.appendChild(el('span', null, '正在找附近門市與距離…（第一次查詢地址可能要十幾秒，可以先操作）'));
+      list.insertBefore(tip, list.firstChild);
     }
 
     function onUnassignedError(err) {
