@@ -2148,7 +2148,35 @@
       inflight.splice(0).forEach(function (c) { try { c.abort(); } catch (e) { } });
     }
 
+    // ===== 速度診斷:網址加 ?diag 時,畫面下方列出每一段花了多久(平常不顯示) =====
+    const DIAG = /[?&]diag\b/.test(location.search);
+    function diag(msg) {
+      if (!DIAG) return;
+      let box = document.getElementById('diagBox');
+      if (!box) {
+        box = document.createElement('div');
+        box.id = 'diagBox';
+        box.style.cssText = 'position:fixed;left:8px;right:8px;bottom:8px;z-index:9999;max-height:40vh;overflow:auto;' +
+          'background:rgba(0,0,0,.85);color:#fff;font:12px/1.5 monospace;padding:8px 10px;border-radius:8px;white-space:pre-wrap';
+        document.body.appendChild(box);
+      }
+      const line = document.createElement('div');
+      line.textContent = (performance.now() / 1000).toFixed(1) + 's  ' + msg;
+      box.appendChild(line);
+    }
+    if (DIAG) {
+      window.addEventListener('load', function () {
+        setTimeout(function () {
+          const nav = performance.getEntriesByType && performance.getEntriesByType('navigation')[0];
+          if (nav) diag('頁面下載 ' + Math.round(nav.responseEnd - nav.startTime) + 'ms（' + (nav.transferSize ? Math.round(nav.transferSize / 1024) + 'KB' : '快取') + '），頁面就緒 ' + Math.round(nav.domContentLoadedEventEnd) + 'ms');
+        }, 0);
+      });
+    }
+
     function gasCall(action, params, isRetry) {
+      const t0 = performance.now();
+      let tHead = 0;
+      let bytes = 0;
       const session = sessionSeq;
       const body = Object.assign({ action: action, pw: password }, params || {});
       const isWrite = WRITE_ACTIONS.indexOf(action) !== -1;
@@ -2175,14 +2203,26 @@
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify(body),
         signal: ctrl ? ctrl.signal : undefined
-      }).then(parseApiResponse_, explainFetchError_);
+      }).then(function (r) {
+        tHead = performance.now();
+        return r.text().then(function (t) { bytes = t.length; return parseApiText_(t); });
+      }, explainFetchError_);
       return Promise.race([request, timeout]).then(function (res) {
         clearTimeout(timer);
         done();
+        if (DIAG) {
+          const tGot = performance.now();
+          // 呼叫端拿到資料後同步畫畫面;下一個 setTimeout 時畫完了
+          setTimeout(function () {
+            diag(action + (isRetry ? '(重試)' : '') + '（' + (t0 / 1000).toFixed(1) + 's 送出）：等回應 ' + Math.round(tHead - t0) + 'ms，下載 ' + Math.round(tGot - tHead) +
+              'ms（' + Math.round(bytes / 1024) + 'KB），畫面 ' + Math.round(performance.now() - tGot) + 'ms');
+          }, 0);
+        }
         return res;
       }, function (err) {
         clearTimeout(timer);
         done();
+        diag(action + (isRetry ? '(重試)' : '') + '：失敗 ' + Math.round(performance.now() - t0) + 'ms ' + (err && err.message ? err.message.split('\n')[0] : ''));
         throw err;
       }).then(function (res) {
         if (session !== sessionSeq) return NEVER();
@@ -2203,14 +2243,12 @@
     }
 
     // 後端回的不是 JSON(Google 臨時錯誤、執行逾時、授權頁等)時,把 Google 頁面上的文字整理出來顯示
-    function parseApiResponse_(r) {
-      return r.text().then(function (text) {
-        try { return JSON.parse(text); } catch (e) {
-          const err = new Error('伺服器暫時沒有回傳資料，請稍候按右上角重新整理。如果一直出現，請截圖給管理員。\nGoogle 訊息：' + describeHtml_(text));
-          err.retryable = true;
-          throw err;
-        }
-      });
+    function parseApiText_(text) {
+      try { return JSON.parse(text); } catch (e) {
+        const err = new Error('伺服器暫時沒有回傳資料，請稍候按右上角重新整理。如果一直出現，請截圖給管理員。\nGoogle 訊息：' + describeHtml_(text));
+        err.retryable = true;
+        throw err;
+      }
     }
 
     // 從 Google 錯誤頁取出標題與內文(去掉程式碼),最多 200 字
@@ -4213,15 +4251,21 @@
       }
       unassignedBusy = true;
       clearTimeout(unassignedLoadingTimeout);
+      // 背景查附近門市時清單已經能操作,文字要講清楚;查完(成功或失敗)要把這句換回「更新於」
+      const waitMsgs = ['附近門市還在查詢中（已超過 10 秒），清單可以先操作', '待分配門市已等待超過 10 秒，仍在等待回應…'];
       unassignedLoadingTimeout = setTimeout(function () {
-        if (mailTab === 'unassigned') setMailStatus('已等待超過 10 秒，仍在等待回應…');
+        if (mailTab === 'unassigned') setMailStatus(waitMsgs[keepList ? 0 : 1]);
       }, 10000);
+      function endWait() {
+        clearTimeout(unassignedLoadingTimeout);
+        if (view === 'mail' && waitMsgs.indexOf($('status').textContent) !== -1) showUpdated('mail');
+      }
 
       const fresh = latestOnly('unassigned');
       // 背景補查失敗:清單和已選的門市都留著,只在上方說明;切回這個分頁或按重新整理會再試
       function nearFailed(message) {
         unassignedBusy = false;
-        clearTimeout(unassignedLoadingTimeout);
+        endWait();
         showNearLoading(false);
         const list = $('unassignedList');
         const oldWarn = list.querySelector('.near-error');
@@ -4232,7 +4276,7 @@
         unassignedBusy = false;
         // 清單讀到了不代表最近門市查好了:後端可能附上 nearestError,這時切回分頁要再查
         unassignedHasNearest = withNearest && !!(result && result.success) && !result.nearestError;
-        clearTimeout(unassignedLoadingTimeout);
+        endWait();
         if (!result || !result.success) {
           if (keepList) nearFailed(result ? result.error : '後端回傳空值');
           else onUnassignedError({ message: result ? result.error : '後端回傳空值' });
@@ -4251,6 +4295,7 @@
         // 清單先出來了,接著在背景查附近門市與距離
         if (!withNearest && unassignedOrders.length) loadUnassigned(true);
       })).catch(fresh(function (err) {
+        endWait();
         if (keepList) nearFailed(err && err.message ? err.message : String(err));
         else onUnassignedError(err);
       }));
