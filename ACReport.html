@@ -2123,19 +2123,8 @@
 
   <script>
     // ⚠ 請把這裡換成你部署的 Apps Script API 網址(結尾是 /exec)
-    const OLD_API_URL = 'https://script.google.com/macros/s/AKfycbwBK4B7s-podG59uymZWGSvPp6xJA-wZT3An_CB9eibBsp-6fcTf-qaTDJh6LrRykfoIA/exec';
-    // 新後端(Supabase 資料庫):正式切換前只有網址加 ?beta 才用,方便跟舊系統對照
-    const DB_API_URL = 'https://fzyuiwpiqcfkotkauywd.supabase.co/functions/v1/api';
-    const USE_DB_API = /[?&]beta\b/.test(location.search);
-    const API_BASE_URL = USE_DB_API ? DB_API_URL : OLD_API_URL;
-    if (USE_DB_API) {
-      document.addEventListener('DOMContentLoaded', function () {
-        const bar = document.createElement('div');
-        bar.style.cssText = 'position:sticky;top:0;z-index:9998;background:#7c3aed;color:#fff;font-size:13px;line-height:1.4;padding:6px 12px;text-align:center';
-        bar.textContent = '測試版（新資料庫）：這裡的標記、指派、改狀態只是測試，不會寫回試算表，幾分鐘內會被試算表的資料蓋回';
-        document.body.insertBefore(bar, document.body.firstChild);
-      });
-    }
+    // 後端:Supabase 資料庫上的 Edge Function(supabase/functions/api);舊的 Apps Script API 已停用
+    const API_BASE_URL = 'https://fzyuiwpiqcfkotkauywd.supabase.co/functions/v1/api';
 
     // 統一呼叫後端 API 的小工具:一律 POST + text/plain(避免 CORS preflight),並帶上登入密碼。
     // 密碼錯誤/失效時直接跳回登入畫面,並回傳一個永遠不會完成的 Promise,讓呼叫端不會再蓋掉畫面
