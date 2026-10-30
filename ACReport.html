@@ -1584,7 +1584,18 @@
       margin-top: 14px;
     }
 
-    #mailView .btn-secondary:hover:not(:disabled) {
+    /* 退回待分配:次要中的次要,不要跟「已寄送」搶眼 */
+    #mailView .unassign-btn {
+      color: var(--text-2);
+      font-weight: 500;
+    }
+
+    #mailView .unassign-btn:hover:not(:disabled) {
+      border-color: var(--text-2);
+      color: var(--text);
+    }
+
+    #mailView .btn-secondary:not(.unassign-btn):hover:not(:disabled) {
       border-color: var(--green);
       color: var(--green);
     }
@@ -2135,10 +2146,11 @@
     // 密碼錯誤/失效時直接跳回登入畫面,並回傳一個永遠不會完成的 Promise,讓呼叫端不會再蓋掉畫面
     // 遇到 Google 臨時錯誤頁或連線中斷時自動重試一次(逾時不重試)。寫入的動作重做也不會出錯:
     // 標記帶同一個 markToken、撤銷核對標記時間、指派與更新狀態遇到「已經是要存的值」直接算成功
-    // (操作紀錄 logAcAction 重送會多一列,不重試)
+    // (操作紀錄 logAcAction 重送會多一列,不重試;退回待分配 unassignStore 也不重試:
+    //  第一次其實成功、期間別人又指派回同一家時,重送會把新的指派退掉,改成提示並重新讀取)
     const RETRYABLE_ACTIONS = ['login', 'getReport', 'getOrdersForAc', 'getPendingOrders', 'getUnassignedOrders',
       'markAsSent', 'unmarkAsSent', 'assignStore', 'assignStores', 'updateNodeStatus'];
-    const WRITE_ACTIONS = ['markAsSent', 'unmarkAsSent', 'assignStore', 'assignStores', 'updateNodeStatus'];
+    const WRITE_ACTIONS = ['markAsSent', 'unmarkAsSent', 'assignStore', 'assignStores', 'unassignStore', 'updateNodeStatus'];
     // 等多久沒回應就中斷(手機網路卡住時按鈕不會一直停在處理中)
     // 不能設太短:試算表大時 Google 本來就要 20~40 秒,太早中斷再重送只會讓伺服器多做一次、更慢
     const READ_TIMEOUT_MS = 90000;
@@ -2303,7 +2315,8 @@
       mail: '<rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 6l-10 7L2 6"/>',
       chevron: '<path d="M6 9l6 6 6-6"/>',
       copy: '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
-      pin: '<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/>'
+      pin: '<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/>',
+      undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/>'
     };
 
     function svg(name, extraClass) {
@@ -3911,6 +3924,27 @@
       reportOrders = null;
     }
 
+    // ----- 寫入序號 -----
+    // 清單查詢回來時,排除「這次查詢送出後」才在這個畫面移出該清單的訂單:
+    // 查詢可能在寫入前就讀到資料庫,較晚回來的舊資料不能把剛標記 / 退回 / 指派的訂單放回去。
+    // 查詢送出前就移出的不排除(之後如果又被別人移回來,新查詢要看得到)
+    let writeSeq = 0;
+    const movedOutAt = { pending: {}, unassigned: {} };
+    function noteMovedOut(listName, order) {
+      writeSeq++;
+      movedOutAt[listName][orderKey(order)] = writeSeq;
+    }
+    function noteMovedIn(listName, order) {
+      delete movedOutAt[listName][orderKey(order)];
+    }
+    function notMovedSince(listName, startSeq) {
+      return function (o) { return !(movedOutAt[listName][orderKey(o)] > startSeq); };
+    }
+    // 卡片可能已經因為清單重新讀取換成新的一張:用訂單找畫面上現在那張
+    function liveCard(card) {
+      return (card.id && document.getElementById(card.id)) || card;
+    }
+
     // ----- 待寄送通知 -----
     function loadPending() {
       setMailStatus('載入中…');
@@ -3921,6 +3955,7 @@
       }, 10000);
 
       const fresh = latestOnly('pending');
+      const startSeq = writeSeq;
       gasCall('getPendingOrders').then(fresh(function (result) {
         clearTimeout(mailLoadingTimeout);
         if (!result || !result.success) {
@@ -3928,7 +3963,7 @@
           return;
         }
         markUpdated('mail');
-        mailOrders = sortBySubmit(result.orders || []);
+        mailOrders = sortBySubmit((result.orders || []).filter(notMovedSince('pending', startSeq)));
         setPendingTabCount(mailOrders.length);
         applyMailFilters();
       })).catch(fresh(onPendingError));
@@ -3975,16 +4010,18 @@
     }
 
     // 標記完成當下就把該筆從「待處理」計數中移除(不等卡片淡出動畫跑完)
+    // 用訂單比對(清單可能已重新讀取,物件換成新的)
     function removeMailOrder(order) {
-      const idx = mailOrders.indexOf(order);
-      if (idx !== -1) mailOrders.splice(idx, 1);
+      const k = orderKey(order);
+      mailOrders = mailOrders.filter(function (o) { return orderKey(o) !== k; });
       setPendingTabCount(mailOrders.length);
       updateChipCounts();
     }
 
     // 撤銷時把該筆加回待處理計數
     function restoreMailOrder(order) {
-      if (mailOrders.indexOf(order) === -1) {
+      const k = orderKey(order);
+      if (!mailOrders.some(function (o) { return orderKey(o) === k; })) {
         mailOrders.push(order);
         mailOrders = sortBySubmit(mailOrders);
       }
@@ -4036,6 +4073,14 @@
       doneBtn.addEventListener('click', function () { markDone(o, doneBtn, outlookBtn, card); });
       doneBtn.disabled = noId;
       actions.appendChild(doneBtn);
+
+      // 指派錯門市:退回「待分配門市」重新選(只有還沒寄出的才能退)
+      const backBtn = el('button', 'btn btn-secondary btn-small btn-block unassign-btn');
+      backBtn.type = 'button';
+      setUnassignLabel(backBtn, false);
+      backBtn.disabled = noId;
+      backBtn.addEventListener('click', function () { unassignPending(o, backBtn, [outlookBtn, doneBtn], card); });
+      actions.appendChild(backBtn);
       card.appendChild(actions);
 
       // 信件詳細內容(收件人/副本/主旨/內文)預設收合,需要時再展開查看或複製
@@ -4199,20 +4244,24 @@
     }
 
     function markDone(order, btn, outlookBtn, card) {
+      // 標記中、撤銷倒數中都不能退回待分配(撤銷成功或標記失敗才恢復)
+      const backBtn = card.querySelector('.unassign-btn');
       btn.disabled = true;
       outlookBtn.disabled = true;
+      if (backBtn) backBtn.disabled = true;
       setDoneLabel(btn, 'busy');
 
       function resetButtons() {
         btn.disabled = false;
         outlookBtn.disabled = false;
+        if (backBtn) backBtn.disabled = false;
         card.classList.remove('is-done');
         setDoneLabel(btn, 'idle');
       }
 
       // 這次按下的代碼:逾時自動重試時帶同一個,後端才知道是同一次操作
       const markToken = Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
-      gasCall('markAsSent', Object.assign({ markToken: markToken }, orderRef(order)))
+      gasCall('markAsSent', Object.assign({ markToken: markToken, storeName: order.storeName }, orderRef(order)))
         .then(function (res) {
           if (!res || !res.success) {
             alert('標記失敗: ' + (res ? res.error : '未知錯誤'));
@@ -4221,13 +4270,14 @@
           }
           setDoneLabel(btn, 'done');
           card.classList.add('is-done');
+          noteMovedOut('pending', order);
           removeMailOrder(order);
           invalidateReport();
 
           // 別人(或另一個分頁)之前就標記過:保留原本的時間,不提供撤銷
           if (res.alreadySent) {
             showToast(order.storeName + ' 之前已標記過（' + res.operationTime + '），時間未變更');
-            setTimeout(function () { removeCard(card, 'mailList', applyMailFilters); }, 1200);
+            setTimeout(function () { removeCard(liveCard(card), 'mailList', applyMailFilters); }, 1200);
             return;
           }
 
@@ -4246,9 +4296,13 @@
                 .then(function (r) {
                   if (r && r.success) {
                     resetButtons();
+                    noteMovedIn('pending', order);
                     restoreMailOrder(order);
                     invalidateReport();
                     showToast('已撤銷「' + order.storeName + '」');
+                    // 倒數期間清單可能重新讀取過(卡片已不在畫面上),或有更早送出的查詢還沒回來:
+                    // 重新讀一次,以撤銷後的資料庫為準(較早送出的查詢回來會被丟掉)
+                    loadPending();
                   } else {
                     undoFailed(r ? r.error : '未知錯誤');
                   }
@@ -4258,7 +4312,7 @@
                 });
             },
             function onExpire() {
-              removeCard(card, 'mailList', applyMailFilters);
+              removeCard(liveCard(card), 'mailList', applyMailFilters);
             },
             UNDO_MS
           );
@@ -4274,15 +4328,66 @@
         });
     }
 
+    function setUnassignLabel(btn, busy) {
+      if (busy) {
+        btn.textContent = '處理中…';
+        return;
+      }
+      btn.innerHTML = svg('undo', 'ic-sm');
+      btn.appendChild(document.createTextNode('門市指派錯了？退回待分配'));
+    }
+
+    // 待寄送 → 退回待分配:成功後兩個清單都重新讀取,到「待分配門市」重新選門市
+    function unassignPending(order, btn, otherBtns, card) {
+      if (!confirm('要把「' + order.storeName + '」這筆退回「待分配門市」嗎？\n\n退回後請到「待分配門市」重新選門市，再回來寄信。')) return;
+      btn.disabled = true;
+      otherBtns.forEach(function (b) { b.disabled = true; });
+      setUnassignLabel(btn, true);
+      function reset() {
+        btn.disabled = false;
+        otherBtns.forEach(function (b) { b.disabled = false; });
+        setUnassignLabel(btn, false);
+      }
+      gasCall('unassignStore', Object.assign({ storeName: order.storeName }, orderRef(order)))
+        .then(function (res) {
+          if (!res || !res.success) {
+            alert('退回失敗: ' + (res ? res.error : '未知錯誤'));
+            reset();
+            return;
+          }
+          noteMovedOut('pending', order);
+          noteMovedIn('unassigned', order); // 之前在這裡指派過、現在退回:要能再出現
+          removeMailOrder(order);
+          invalidateReport();
+          removeCard(liveCard(card), 'mailList', applyMailFilters);
+          showToast('已退回「待分配門市」，請到那裡重新選門市');
+          loadUnassigned(undefined, 'addNew');
+        })
+        .catch(function (err) {
+          if (err && err.retryable) {
+            alert('退回失敗: ' + err.message + '\n無法確認是否已退回，清單會重新讀取，顯示目前的實際狀態');
+            reloadAfterUnsureWrite();
+            return;
+          }
+          alert('退回失敗: ' + err.message);
+          reset();
+        });
+    }
+
     // ----- 待分配門市 -----
     // 最近門市要查地址座標,比較慢:沒打開「待分配門市」分頁時只抓清單(算筆數),切過去才查最近門市
     // forceNearest:清單已經先顯示,接著在背景補查附近門市與距離(不用等使用者切到這個分頁)
-    function loadUnassigned(forceNearest) {
+    // mode 'addNew':剛有訂單退回待分配:清單已經在畫面上就不重建(已選的門市、送出中的狀態保留),只把新的加進來
+    // mode 'rebuild':寫入結果不確定,整份清單照後端重建
+    function loadUnassigned(forceNearest, mode) {
       const withNearest = forceNearest === true || mailTab === 'unassigned';
-      const keepList = withNearest && unassignedOrders.length && !unassignedHasNearest;
-      if (keepList) {
+      const addNew = mode === 'addNew';
+      const keepList = mode !== 'rebuild' && unassignedOrders.length > 0 && (addNew || (withNearest && !unassignedHasNearest));
+      const nearInPlace = keepList && withNearest; // 保留清單,同時就地補上附近門市
+      const startSeq = writeSeq;
+      if (nearInPlace) {
         showNearLoading(true);
-      } else {
+      } else if (!keepList) {
         showSkeleton('unassignedList');
       }
       unassignedBusy = true;
@@ -4290,7 +4395,7 @@
       // 背景查附近門市時清單已經能操作,文字要講清楚;查完(成功或失敗)要把這句換回「更新於」
       const waitMsgs = ['附近門市還在查詢中（已超過 10 秒），清單可以先操作', '待分配門市已等待超過 10 秒，仍在等待回應…'];
       unassignedLoadingTimeout = setTimeout(function () {
-        if (mailTab === 'unassigned') setMailStatus(waitMsgs[keepList ? 0 : 1]);
+        if (mailTab === 'unassigned') setMailStatus(waitMsgs[nearInPlace ? 0 : 1]);
       }, 10000);
       function endWait() {
         clearTimeout(unassignedLoadingTimeout);
@@ -4302,6 +4407,11 @@
       function nearFailed(message) {
         unassignedBusy = false;
         endWait();
+        if (!nearInPlace) {
+          // 只是要加入剛退回的訂單:清單照舊,提示重新整理
+          showToast('待分配清單沒有更新成功（' + message + '），請按重新整理');
+          return;
+        }
         showNearLoading(false);
         const list = $('unassignedList');
         const oldWarn = list.querySelector('.near-error');
@@ -4319,11 +4429,14 @@
           return;
         }
         if (keepList) {
-          // 清單已經在畫面上(可能已經選了門市):只補上最近門市,不重建
-          showNearLoading(false);
-          applyNearestInPlace(result);
+          // 清單已經在畫面上(可能已經選了門市):不重建,補上最近門市 / 加入新的訂單
+          if (nearInPlace) {
+            showNearLoading(false);
+            applyNearestInPlace(result);
+          }
+          if (addNew) appendNewUnassigned(result.orders || [], startSeq);
         } else {
-          unassignedOrders = sortBySubmit(result.orders || []);
+          unassignedOrders = sortBySubmit((result.orders || []).filter(notMovedSince('unassigned', startSeq)));
           storeNameOptions = result.storeNames || [];
           setUnassignedTabCount(unassignedOrders.length);
           renderUnassignedList(unassignedOrders, result.nearestError);
@@ -4607,6 +4720,7 @@
       card.appendChild(head);
       card.appendChild(submitLine(o, !hasValue(o.customer)));
 
+      card.appendChild(makePlace('訂購單位', o.orderUnit));
       card.appendChild(makePlace('外送地址', o.deliveryAddress, { copy: true, map: true, site: true }));
 
       // 指派門市
@@ -4712,6 +4826,26 @@
       updateBulkBar();
     }
 
+    // 用訂單比對(清單可能已重新讀取,物件換成新的)
+    function dropUnassignedOrder(order) {
+      const k = orderKey(order);
+      unassignedOrders = unassignedOrders.filter(function (o) { return orderKey(o) !== k; });
+    }
+
+    // 清單上還沒有的訂單(例如剛從待寄送退回的)加到最後面,並更新筆數
+    // startSeq:這次查詢送出時的寫入序號(查詢送出後才在這個畫面指派掉的,不能被舊資料加回來)
+    function appendNewUnassigned(orders, startSeq) {
+      const known = {};
+      unassignedOrders.forEach(function (o) { known[orderKey(o)] = true; });
+      const added = sortBySubmit(orders.filter(function (o) { return !known[orderKey(o)]; }).filter(notMovedSince('unassigned', startSeq)));
+      if (!added.length) return;
+      const list = $('unassignedList');
+      added.forEach(function (o) { list.appendChild(buildUnassignedCard(o)); });
+      unassignedOrders = sortBySubmit(unassignedOrders.concat(added));
+      setUnassignedTabCount(unassignedOrders.length);
+      updateBulkBar();
+    }
+
     // 已選好門市、還沒送出的卡片
     function pendingAssignments() {
       return Array.prototype.slice.call($('unassignedList').querySelectorAll('.card'))
@@ -4769,9 +4903,10 @@
           const it = items[i];
           if (r && r.success) {
             ok++;
-            const idx = unassignedOrders.indexOf(it.order);
-            if (idx !== -1) unassignedOrders.splice(idx, 1);
-            removeCard(it.card, 'unassignedList', emptyUnassigned);
+            noteMovedOut('unassigned', it.order);
+            noteMovedIn('pending', it.order);
+            dropUnassignedOrder(it.order);
+            removeCard(liveCard(it.card), 'unassignedList', emptyUnassigned);
           } else {
             failed.push(orderLabel(it.order) + '：' + (r ? r.error : '未知錯誤'));
             resetItem(it);
@@ -4837,12 +4972,13 @@
             reset();
             return;
           }
-          const idx = unassignedOrders.indexOf(order);
-          if (idx !== -1) unassignedOrders.splice(idx, 1);
+          noteMovedOut('unassigned', order);
+          noteMovedIn('pending', order);
+          dropUnassignedOrder(order);
           setUnassignedTabCount(unassignedOrders.length);
           invalidateReport();
           showToast('已指派「' + res.storeName + '」，待寄送訂單同步更新中');
-          removeCard(card, 'unassignedList', emptyUnassigned);
+          removeCard(liveCard(card), 'unassignedList', emptyUnassigned);
           updateBulkBar();
           // 指派完成後自動重整「待寄送」,不用手動按重整才會看到剛指派好的這筆
           loadPending();
@@ -4862,7 +4998,7 @@
     function reloadAfterUnsureWrite() {
       invalidateReport();
       loadPending();
-      loadUnassigned();
+      loadUnassigned(undefined, 'rebuild');
     }
 
     let savedPw = '';
