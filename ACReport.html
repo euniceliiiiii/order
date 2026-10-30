@@ -1739,6 +1739,47 @@
       color: var(--text-3);
     }
 
+    /* 指派門市:可打字的輸入框(沒有下拉箭頭) */
+    .store-input {
+      background-image: none;
+      padding-right: 14px;
+    }
+
+    .store-input::placeholder {
+      color: var(--text-3);
+    }
+
+    .store-hint {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      margin-top: 6px;
+    }
+
+    .store-hint[hidden] {
+      display: none;
+    }
+
+    .cand-btn {
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      border-radius: 999px;
+      padding: 5px 12px;
+      font-size: 14px;
+    }
+
+    .cand-btn:hover:not(:disabled) {
+      border-color: var(--green);
+      background: var(--green-soft);
+    }
+
+    .cand-btn:disabled {
+      opacity: .5;
+      cursor: default;
+    }
+
     /* 一次指派:固定在畫面底部 */
     .bulk-bar {
       position: sticky;
@@ -4438,6 +4479,7 @@
         } else {
           unassignedOrders = sortBySubmit((result.orders || []).filter(notMovedSince('unassigned', startSeq)));
           storeNameOptions = result.storeNames || [];
+          fillStoreDatalist();
           setUnassignedTabCount(unassignedOrders.length);
           renderUnassignedList(unassignedOrders, result.nearestError);
         }
@@ -4723,15 +4765,27 @@
       card.appendChild(makePlace('訂購單位', o.orderUnit));
       card.appendChild(makePlace('外送地址', o.deliveryAddress, { copy: true, map: true, site: true }));
 
-      // 指派門市
+      // 指派門市:看得到的是可以打字 / 貼上的輸入框;選定的門市記在隱藏的下拉選單(其他程式都看它)
       const field = el('div', 'place');
       const selectId = 'assign-' + orderKey(o);
       const lab = el('label', 'field-label', '指派門市');
       lab.htmlFor = selectId;
       field.appendChild(lab);
+      const input = el('input', 'select store-input');
+      input.type = 'text';
+      input.id = selectId;
+      input.setAttribute('list', STORE_DATALIST_ID);
+      input.setAttribute('autocomplete', 'off');
+      input.setAttribute('enterkeyhint', 'done');
+      input.placeholder = '輸入或貼上門市名稱，例如：新竹馬偕';
+      input.style.marginTop = '4px';
+      field.appendChild(input);
+      const hint = el('div', 'store-hint');
+      hint.hidden = true;
       const select = el('select', 'select placeholder');
-      select.id = selectId;
-      select.style.marginTop = '4px';
+      select.hidden = true;
+      select.tabIndex = -1;
+      select.setAttribute('aria-hidden', 'true');
       const placeholder = el('option', null, '請選擇門市…');
       placeholder.value = '';
       placeholder.disabled = true;
@@ -4743,6 +4797,8 @@
         select.appendChild(opt);
       });
       field.appendChild(select);
+      field.appendChild(hint);
+      bindStoreInput(input, select, hint);
       const suggestions = makeSuggestions(o, select);
       if (suggestions) {
         suggestions.classList.add('sugg-block');
@@ -4771,6 +4827,90 @@
       card._assign = { order: o, select: select, btn: confirmBtn, card: card, userPicked: false };
       preselectNearest(card);
       return card;
+    }
+
+    // ----- 指派門市輸入框:打字 / 貼上 -----
+    // 共用一份門市清單(datalist):打字時瀏覽器列出符合的門市
+    const STORE_DATALIST_ID = 'storeNameList';
+    function fillStoreDatalist() {
+      let list = document.getElementById(STORE_DATALIST_ID);
+      if (!list) {
+        list = document.createElement('datalist');
+        list.id = STORE_DATALIST_ID;
+        document.body.appendChild(list);
+      }
+      list.innerHTML = '';
+      storeNameOptions.forEach(function (name) {
+        const opt = document.createElement('option');
+        opt.value = name;
+        list.appendChild(opt);
+      });
+    }
+
+    // 輸入的文字 → 門市名單裡的哪一家
+    // 只有「完全相同」或「去掉必勝客 / 店等字後完全相同、而且只有一家」才算選定;
+    // 只打一部分(例如「新竹」)不自動選,列出候選讓人點,免得一次指派時送出沒看清楚的門市
+    function matchStoreInput(text) {
+      const t = String(text || '').trim();
+      if (!t) return { name: '', candidates: [] };
+      if (storeNameOptions.indexOf(t) !== -1) return { name: t, candidates: [] };
+      const n = normStoreText(t);
+      if (!n) return { name: '', candidates: [] };
+      const same = storeNameOptions.filter(function (name) { return normStoreText(name) === n; });
+      if (same.length === 1) return { name: same[0], candidates: [] };
+      const contains = same.length ? same : storeNameOptions.filter(function (name) { return normStoreText(name).indexOf(n) !== -1; });
+      return { name: '', candidates: contains };
+    }
+
+    function bindStoreInput(input, select, hint) {
+      let fromInput = false;
+      function showHint(text, res) {
+        hint.innerHTML = '';
+        hint.hidden = !text || !!res.name;
+        if (hint.hidden) return;
+        if (!res.candidates.length) {
+          hint.appendChild(el('span', 'near-note', '門市名單裡找不到「' + text + '」，請換個寫法或從清單選'));
+          return;
+        }
+        hint.appendChild(el('span', 'near-note', res.candidates.length > 5 ? '符合的有 ' + res.candidates.length + ' 家，再打完整一點，或點一家：' : '是哪一家？點一下帶入：'));
+        res.candidates.slice(0, 5).forEach(function (name) {
+          const b = el('button', 'cand-btn', name);
+          b.type = 'button';
+          b.disabled = select.disabled;
+          b.addEventListener('click', function () {
+            if (select.disabled) return;
+            input.value = name;
+            apply();
+          });
+          hint.appendChild(b);
+        });
+      }
+      // 只有使用者打字 / 點候選時呼叫:打過字(即使只打一部分、還沒選定)就不讓背景的最近門市預選蓋掉
+      function apply() {
+        const card = input.closest('.card');
+        if (card && card._assign) card._assign.userPicked = true;
+        const text = input.value.trim();
+        const res = matchStoreInput(text);
+        if (select.value !== res.name) {
+          fromInput = true;
+          try {
+            select.value = res.name;
+            select.dispatchEvent(new Event('change'));
+          } finally {
+            fromInput = false;
+          }
+        }
+        showHint(text, res);
+      }
+      input.addEventListener('input', apply);
+      // 選好後把文字整理成正式店名(例如貼上「必勝客新竹馬偕店」→「新竹馬偕店」)
+      input.addEventListener('change', function () { if (select.value) input.value = select.value; });
+      // 從建議門市按鈕、最近門市預選改到的:輸入框跟著顯示
+      select.addEventListener('change', function () {
+        if (fromInput) return;
+        input.value = select.value;
+        hint.hidden = true;
+      });
     }
 
     // 預設選離外送地址最近、且在門市名單裡的那家(建議清單順序不變,顧客填的仍排第一)
@@ -4940,6 +5080,7 @@
       card.querySelectorAll('.near-btn').forEach(function (b) {
         if (b.dataset.match) b.disabled = locked;
       });
+      card.querySelectorAll('.store-input, .cand-btn').forEach(function (b) { b.disabled = locked; });
     }
 
     function setAssignLabel(btn, storeName) {
