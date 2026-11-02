@@ -3812,8 +3812,6 @@
     // =====================================================================
     // 逾時未寄送門檻:超過此時數視為逾期
     const OVERDUE_MS = 24 * 60 * 60 * 1000;
-    // mailto 內容過長時瀏覽器/郵件用戶端可能截斷,超過此字元數就提醒改用複製
-    const MAILTO_SAFE_LENGTH = 1800;
     const UNDO_MS = 5000;
 
     let mailLoaded = false;
@@ -4219,15 +4217,7 @@
       const params = 'cc=' + encodeURIComponent(order.cc || '') +
         '&subject=' + encodeURIComponent(order.subject || '') +
         '&body=' + encodeURIComponent(order.body || '');
-      const mailto = 'mailto:' + encodeURIComponent(order.to || '') + '?' + params;
-      if (mailto.length > MAILTO_SAFE_LENGTH) {
-        const proceed = confirm(
-          '這封信內容較長，用「開啟 Outlook」自動帶入時，部分郵件軟體可能會截斷內文。\n\n' +
-          '仍要嘗試開啟嗎？(建議展開「信件內容」用「複製」按鈕，貼到 Outlook 較保險)'
-        );
-        if (!proceed) return;
-      }
-      openExternal(mailto);
+      openExternal('mailto:' + encodeURIComponent(order.to || '') + '?' + params);
     }
 
     function setDoneLabel(btn, state) {
